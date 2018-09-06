@@ -40,6 +40,11 @@ object LogFileReader {
   private val LogStep = 100000
   private val SecMillisecRatio = 1000.0
   private val SimulationFilesNamePattern = """.*\.log"""
+
+  def instantiate(runUuid: String, props: mutable.Map[String, _]): LogFileReader = {
+    implicit val configuration = GatlingConfiguration.load(props)
+    new LogFileReader(runUuid)
+  }
 }
 
 class LogFileReader(runUuid: String)(implicit configuration: GatlingConfiguration) extends GeneralStatsSource with StrictLogging {
