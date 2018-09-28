@@ -19,12 +19,13 @@ package io.gatling.http.request
 import io.gatling.commons.validation.Validation
 import io.gatling.core.session._
 import io.gatling.http.ResponseTransformer
-import io.gatling.http.check.HttpCheck
+import io.gatling.http.check.{ ErrorCheck, HttpCheck }
 import io.gatling.http.client.Request
 import io.gatling.http.protocol.HttpProtocol
 
 case class HttpRequestConfig(
     checks:              List[HttpCheck],
+    errorChecks:         List[ErrorCheck],
     responseTransformer: Option[ResponseTransformer],
     maxRedirects:        Int,
     throttled:           Boolean,

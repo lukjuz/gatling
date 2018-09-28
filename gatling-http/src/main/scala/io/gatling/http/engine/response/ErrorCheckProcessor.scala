@@ -14,16 +14,17 @@
  * limitations under the License.
  */
 
-package io.gatling.http.check
+package io.gatling.http.engine.response
 
-sealed trait HttpCheckScope
+import io.gatling.commons.validation.Failure
+import io.gatling.core.check.Check
+import io.gatling.core.session.Session
+import io.gatling.http.check.ErrorCheck
+import io.gatling.http.response.HttpFailure
 
-object HttpCheckScope {
+object ErrorCheckProcessor {
 
-  case object Status extends HttpCheckScope
-  case object Url extends HttpCheckScope
-  case object Time extends HttpCheckScope
-  case object Header extends HttpCheckScope
-  case object Body extends HttpCheckScope
-  case object Error extends HttpCheckScope
+  private[response] def check(session: Session, failure: HttpFailure, checks: List[ErrorCheck], computeUpdates: Boolean): (Session, Session => Session, Option[Failure]) = {
+    Check.check(failure, session, checks, computeUpdates)
+  }
 }

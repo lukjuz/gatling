@@ -26,7 +26,11 @@ object HttpCheckBuilders {
   private def specializer(target: HttpCheckScope, responseBodyUsageStrategy: Option[ResponseBodyUsageStrategy]): Specializer[HttpCheck, Response] =
     (wrapped: Check[Response]) => HttpCheck(wrapped, target, responseBodyUsageStrategy)
 
+  private def errorSpecializer(target: HttpCheckScope, responseBodyUsageStrategy: Option[ResponseBodyUsageStrategy]): Specializer[ErrorCheck, HttpFailure] =
+    (wrapped: Check[HttpFailure]) => ErrorCheck(wrapped, target, responseBodyUsageStrategy)
+
   val StatusSpecializer = specializer(Status, None)
+  val ErrorSpecializer = errorSpecializer(Error, None)
   val UrlSpecializer = specializer(Url, None)
   val HeaderSpecializer = specializer(Header, None)
   def bodySpecializer(responseBodyUsageStrategy: ResponseBodyUsageStrategy) = specializer(Body, Some(responseBodyUsageStrategy))
@@ -40,4 +44,7 @@ object HttpCheckBuilders {
   val ResponseBodyStringPreparer: Preparer[Response, String] = _.body.string.success
   val ResponseBodyBytesPreparer: Preparer[Response, Array[Byte]] = _.body.bytes.success
   val UrlStringPreparer: Preparer[Response, String] = _.request.getUri.toFullUrl.success
+
+  val PassThroughErrorPreparer: Preparer[HttpFailure, HttpFailure] = _.success
+
 }

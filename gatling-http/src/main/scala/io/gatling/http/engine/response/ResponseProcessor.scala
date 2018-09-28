@@ -58,14 +58,22 @@ class DefaultResponseProcessor(
     }
 
   private def handleFailure(failure: HttpFailure): Unit = {
-    val sessionWithUpdatedStats = sessionProcessor.updateSessionCrashed(tx.session, failure.startTimestamp, failure.endTimestamp)
-    try {
-      statsProcessor.reportStats(tx.fullRequestName, tx.request.clientRequest, sessionWithUpdatedStats, KO, failure, Some(failure.errorMessage))
-    } catch {
-      case NonFatal(t) =>
-        logger.error(s"ResponseProcessor crashed while handling failure $failure on session=${tx.session} request=${tx.request.requestName}: ${tx.request.clientRequest}, forwarding", t)
-    } finally {
-      nextExecutor.executeNextOnCrash(sessionWithUpdatedStats, failure.endTimestamp)
+    if (tx.request.requestConfig.errorChecks.isEmpty) {
+      val sessionWithUpdatedStats = sessionProcessor.updateSessionCrashed(tx.session, failure.startTimestamp, failure.endTimestamp)
+      try {
+        statsProcessor.reportStats(tx.fullRequestName, tx.request.clientRequest, sessionWithUpdatedStats, KO, failure, Some(failure.errorMessage))
+      } catch {
+        case NonFatal(t) =>
+          logger.error(s"ResponseProcessor crashed while handling failure $failure on session=${tx.session} request=${tx.request.requestName}: ${tx.request.clientRequest}, forwarding", t)
+      } finally {
+        nextExecutor.executeNextOnCrash(sessionWithUpdatedStats, failure.endTimestamp)
+      }
+    } else {
+      val (newSession, updates, errorMessage) = sessionProcessor.updateSessionCrashedWithChecks(failure, computeUpdates = false, tx.session)
+      val status = if (errorMessage.isDefined) KO else OK
+
+      statsProcessor.reportStats(tx.fullRequestName, tx.request.clientRequest, newSession, status, failure, errorMessage)
+      nextExecutor.executeNextOnCrash(newSession, failure.endTimestamp)
     }
   }
 

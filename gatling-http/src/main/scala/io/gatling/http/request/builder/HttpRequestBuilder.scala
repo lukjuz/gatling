@@ -22,15 +22,15 @@ import io.gatling.core.session._
 import io.gatling.http.action.HttpRequestActionBuilder
 import io.gatling.http.cache.HttpCaches
 import io.gatling.http.{ HeaderNames, HeaderValues, ResponseTransformer }
-import io.gatling.http.check.HttpCheck
+import io.gatling.http.check.{ ErrorCheck, HttpCheck }
 import io.gatling.http.check.HttpCheckScope.Status
 import io.gatling.http.protocol.HttpProtocol
 import io.gatling.http.request._
-
 import com.softwaremill.quicklens._
 
 case class HttpAttributes(
     checks:              List[HttpCheck]                      = Nil,
+    errorChecks:         List[ErrorCheck]                     = Nil,
     ignoreDefaultChecks: Boolean                              = false,
     silent:              Option[Boolean]                      = None,
     followRedirect:      Boolean                              = true,
@@ -66,6 +66,13 @@ case class HttpRequestBuilder(commonAttributes: CommonAttributes, httpAttributes
    * @param checks the checks that will be performed on the response
    */
   def check(checks: HttpCheck*): HttpRequestBuilder = this.modify(_.httpAttributes.checks).using(_ ::: checks.toList)
+
+  /**
+   * Stops defining the request and adds checks on the response
+   *
+   * @param checks the checks that will be performed on the error message if any
+   */
+  def errorCheck(checks: ErrorCheck*): HttpRequestBuilder = this.modify(_.httpAttributes.errorChecks).using(_ ::: checks.toList)
 
   /**
    * Ignore the default checks configured on HttpProtocol
@@ -142,6 +149,7 @@ case class HttpRequestBuilder(commonAttributes: CommonAttributes, httpAttributes
       resolvedRequestExpression,
       HttpRequestConfig(
         checks = resolvedChecks,
+        errorChecks = httpAttributes.errorChecks,
         responseTransformer = resolvedResponseTransformer,
         maxRedirects = httpProtocol.responsePart.maxRedirects,
         throttled = throttled,

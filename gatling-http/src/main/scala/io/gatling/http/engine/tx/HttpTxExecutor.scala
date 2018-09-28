@@ -163,6 +163,7 @@ class HttpTxExecutor(
           !tx.silent,
           tx.request.clientRequest,
           tx.request.requestConfig.checks,
+          tx.request.requestConfig.errorChecks,
           httpCaches,
           httpProtocol,
           clock
@@ -179,6 +180,7 @@ class HttpTxExecutor(
         !tx.silent,
         tx.request.clientRequest,
         tx.request.requestConfig.checks,
+        tx.request.requestConfig.errorChecks,
         httpCaches,
         httpProtocol,
         clock

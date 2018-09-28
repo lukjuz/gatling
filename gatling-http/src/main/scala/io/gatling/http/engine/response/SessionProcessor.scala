@@ -20,23 +20,45 @@ import io.gatling.commons.stats.{ KO, OK, Status }
 import io.gatling.commons.util.Clock
 import io.gatling.core.session.Session
 import io.gatling.http.cache.HttpCaches
-import io.gatling.http.check.HttpCheck
+import io.gatling.http.check.{ ErrorCheck, HttpCheck }
 import io.gatling.http.client.Request
 import io.gatling.http.client.ahc.uri.Uri
 import io.gatling.http.cookie.CookieSupport
 import io.gatling.http.protocol.HttpProtocol
 import io.gatling.http.referer.RefererHandling
-import io.gatling.http.response.Response
+import io.gatling.http.response.{ HttpFailure, Response }
 import io.gatling.http.util.HttpHelper
 
 sealed abstract class SessionProcessor(
     notSilent:    Boolean,
     request:      Request,
     checks:       List[HttpCheck],
+    errorChecks:  List[ErrorCheck],
     httpCaches:   HttpCaches,
     httpProtocol: HttpProtocol,
     clock:        Clock
 ) {
+
+  def updateSessionCrashedWithChecks(failure: HttpFailure, computeUpdates: Boolean, session: Session): (Session, Session => Session, Option[String]) = {
+    def updateSessionAfterChecks(s1: Session, status: Status): Session = {
+      updateSessionStats(s1, failure.startTimestamp, failure.endTimestamp, status)
+    }
+
+    val (sessionWithCheckSavedValues, checkUpdates, checkError) = ErrorCheckProcessor.check(session, failure, errorChecks, computeUpdates)
+
+    val sessionWithHttp2PriorKnowledge = sessionWithCheckSavedValues
+
+    val newStatus = if (checkError.isDefined) KO else OK
+    val newSession = updateSessionAfterChecks(sessionWithHttp2PriorKnowledge, newStatus)
+
+    val updates: Session => Session =
+      if (computeUpdates) {
+        checkUpdates andThen (updateSessionAfterChecks(_, newStatus))
+      } else {
+        identity
+      }
+    (newSession, updates, checkError.map(_.message))
+  }
 
   def updateSessionCrashed(session: Session, startTimestamp: Long, endTimestamp: Long): Session =
     updateSessionStats(session, startTimestamp, endTimestamp, KO)
@@ -105,6 +127,7 @@ class RootSessionProcessor(
     notSilent:    Boolean,
     request:      Request,
     checks:       List[HttpCheck],
+    errorChecks:  List[ErrorCheck],
     httpCaches:   HttpCaches,
     httpProtocol: HttpProtocol,
     clock:        Clock
@@ -112,6 +135,7 @@ class RootSessionProcessor(
   notSilent,
   request,
   checks,
+  errorChecks,
   httpCaches,
   httpProtocol,
   clock
@@ -131,6 +155,7 @@ class ResourceSessionProcessor(
     notSilent:    Boolean,
     request:      Request,
     checks:       List[HttpCheck],
+    errorChecks:  List[ErrorCheck],
     httpCaches:   HttpCaches,
     httpProtocol: HttpProtocol,
     clock:        Clock
@@ -138,6 +163,7 @@ class ResourceSessionProcessor(
   notSilent,
   request,
   checks,
+  errorChecks,
   httpCaches,
   httpProtocol,
   clock

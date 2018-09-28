@@ -17,7 +17,6 @@
 package io.gatling.http.check
 
 import scala.annotation.implicitNotFound
-
 import io.gatling.commons.validation.Validation
 import io.gatling.core.check._
 import io.gatling.core.check.extractor.css.CssSelectors
@@ -27,11 +26,12 @@ import io.gatling.core.json.JsonParsers
 import io.gatling.core.session.{ Expression, Session }
 import io.gatling.http.check.body._
 import io.gatling.http.check.checksum.HttpChecksumCheckMaterializer
+import io.gatling.http.check.error.{ HttpErrorCheckBuilder, HttpErrorCheckMaterializer }
 import io.gatling.http.check.header._
 import io.gatling.http.check.status.{ HttpStatusCheckBuilder, HttpStatusCheckMaterializer }
 import io.gatling.http.check.time.HttpResponseTimeCheckMaterializer
 import io.gatling.http.check.url.{ CurrentLocationCheckBuilder, CurrentLocationCheckMaterializer, CurrentLocationRegexCheckBuilder, CurrentLocationRegexCheckMaterializer }
-import io.gatling.http.response.Response
+import io.gatling.http.response.{ HttpFailure, Response }
 
 trait HttpCheckSupport {
 
@@ -47,6 +47,18 @@ trait HttpCheckSupport {
   implicit def findCheckBuilder2HttpCheck[A, P, X](findCheckBuilder: FindCheckBuilder[A, P, X])(implicit CheckMaterializer: CheckMaterializer[A, HttpCheck, Response, P]): HttpCheck =
     findCheckBuilder.find.exists
 
+  @implicitNotFound("Could not find a CheckMaterializer. This check might not be valid for HTTP.")
+  implicit def checkBuilder2ErrorCheck[A, P, X](checkBuilder: CheckBuilder[A, P, X])(implicit materializer: CheckMaterializer[A, ErrorCheck, HttpFailure, P]): ErrorCheck =
+    checkBuilder.build(materializer)
+
+  @implicitNotFound("Could not find a CheckMaterializer. This check might not be valid for HTTP.")
+  implicit def validatorCheckBuilder2ErrorCheck[A, P, X](validatorCheckBuilder: ValidatorCheckBuilder[A, P, X])(implicit CheckMaterializer: CheckMaterializer[A, ErrorCheck, HttpFailure, P]): ErrorCheck =
+    validatorCheckBuilder.exists
+
+  @implicitNotFound("Could not find a CheckMaterializer. This check might not be valid for HTTP.")
+  implicit def findCheckBuilder2ErrorCheck[A, P, X](findCheckBuilder: FindCheckBuilder[A, P, X])(implicit CheckMaterializer: CheckMaterializer[A, ErrorCheck, HttpFailure, P]): ErrorCheck =
+    findCheckBuilder.find.exists
+
   val currentLocation = CurrentLocationCheckBuilder.CurrentLocation
   implicit val currentLocationCheckMaterializer = CurrentLocationCheckMaterializer
 
@@ -56,6 +68,9 @@ trait HttpCheckSupport {
 
   val status = HttpStatusCheckBuilder.Status
   implicit val httpStatusCheckMaterializer = HttpStatusCheckMaterializer
+
+  val error = HttpErrorCheckBuilder.Error
+  implicit val htppErrorCheckMaterializer = HttpErrorCheckMaterializer
 
   val header = new HttpHeaderCheckBuilder(_)
   implicit val httpHeaderCheckMaterializer = HttpHeaderCheckMaterializer
