@@ -19,7 +19,6 @@ package io.gatling.http.check
 import java.io.InputStream
 
 import scala.annotation.implicitNotFound
-
 import io.gatling.commons.validation.Validation
 import io.gatling.core.check._
 import io.gatling.core.check.bytes._
@@ -34,7 +33,7 @@ import io.gatling.core.check.substring._
 import io.gatling.core.check.time._
 import io.gatling.core.check.xpath._
 import io.gatling.core.json.JsonParsers
-import io.gatling.core.session.{ Expression, Session }
+import io.gatling.core.session.{Expression, Session}
 import io.gatling.core.stats.message._
 import io.gatling.http.check.body._
 import io.gatling.http.check.checksum._
@@ -42,9 +41,9 @@ import io.gatling.http.check.header._
 import io.gatling.http.check.status._
 import io.gatling.http.check.time._
 import io.gatling.http.check.url._
-import io.gatling.http.response.Response
-
+import io.gatling.http.response.{HttpFailure, Response}
 import com.fasterxml.jackson.databind.JsonNode
+import io.gatling.http.check.error.{HttpErrorCheckBuilder, HttpErrorCheckMaterializer}
 import jodd.lagarto.dom.NodeSelector
 import net.sf.saxon.s9api.XdmNode
 
@@ -132,4 +131,20 @@ trait HttpCheckSupport {
       HttpCheck(ConditionalCheck(typedCondition, thenCheck), thenCheck.scope)
     }
   }
+
+  val error = HttpErrorCheckBuilder.Error
+  implicit val htppErrorCheckMaterializer = HttpErrorCheckMaterializer
+
+  @implicitNotFound("Could not find a CheckMaterializer. This check might not be valid for HTTP.")
+  implicit def checkBuilder2ErrorCheck[A, P, X](checkBuilder: CheckBuilder[A, P, X])(implicit materializer: CheckMaterializer[A, ErrorCheck, HttpFailure, P]): ErrorCheck =
+    checkBuilder.build(materializer)
+
+  @implicitNotFound("Could not find a CheckMaterializer. This check might not be valid for HTTP.")
+  implicit def validatorCheckBuilder2ErrorCheck[A, P, X](validatorCheckBuilder: ValidatorCheckBuilder[A, P, X])(implicit CheckMaterializer: CheckMaterializer[A, ErrorCheck, HttpFailure, P]): ErrorCheck =
+    validatorCheckBuilder.exists
+
+  @implicitNotFound("Could not find a CheckMaterializer. This check might not be valid for HTTP.")
+  implicit def findCheckBuilder2ErrorCheck[A, P, X](findCheckBuilder: FindCheckBuilder[A, P, X])(implicit CheckMaterializer: CheckMaterializer[A, ErrorCheck, HttpFailure, P]): ErrorCheck =
+    findCheckBuilder.find.exists
+
 }

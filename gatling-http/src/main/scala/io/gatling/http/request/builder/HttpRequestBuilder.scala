@@ -20,27 +20,26 @@ import java.security.MessageDigest
 
 import scala.collection.breakOut
 import scala.concurrent.duration.FiniteDuration
-
-import io.gatling.core.body.{ Body, RawFileBodies }
+import io.gatling.core.body.{Body, RawFileBodies}
 import io.gatling.core.check.ChecksumCheck
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session._
 import io.gatling.http.ResponseTransformer
 import io.gatling.http.action.HttpRequestActionBuilder
 import io.gatling.http.cache.HttpCaches
-import io.gatling.http.check.HttpCheck
+import io.gatling.http.check.{ErrorCheck, HttpCheck}
 import io.gatling.http.check.HttpCheckScope._
 import io.gatling.http.engine.response.IsHttpDebugEnabled
 import io.gatling.http.protocol.HttpProtocol
 import io.gatling.http.request._
-
 import com.softwaremill.quicklens._
-import io.netty.handler.codec.http.{ HttpHeaderNames, HttpHeaderValues }
+import io.netty.handler.codec.http.{HttpHeaderNames, HttpHeaderValues}
 
 object HttpAttributes {
   val Empty: HttpAttributes =
     new HttpAttributes(
       checks = Nil,
+      errorChecks = Nil,
       ignoreProtocolChecks = false,
       silent = None,
       followRedirect = true,
@@ -56,6 +55,7 @@ object HttpAttributes {
 
 final case class HttpAttributes(
     checks: List[HttpCheck],
+    errorChecks: List[ErrorCheck],
     ignoreProtocolChecks: Boolean,
     silent: Option[Boolean],
     followRedirect: Boolean,
@@ -189,6 +189,7 @@ final case class HttpRequestBuilder(commonAttributes: CommonAttributes, httpAttr
       resolvedRequestExpression,
       HttpRequestConfig(
         checks = sortedChecks,
+        errorChecks = httpAttributes.errorChecks,
         responseTransformer = resolvedResponseTransformer,
         throttled = throttled,
         silent = httpAttributes.silent,
@@ -201,4 +202,11 @@ final case class HttpRequestBuilder(commonAttributes: CommonAttributes, httpAttr
       )
     )
   }
+
+  /**
+   * Stops defining the request and adds checks on the response
+   *
+   * @param checks the checks that will be performed on the error message if any
+   */
+  def errorCheck(checks: ErrorCheck*): HttpRequestBuilder = this.modify(_.httpAttributes.errorChecks).using(_ ::: checks.toList)
 }

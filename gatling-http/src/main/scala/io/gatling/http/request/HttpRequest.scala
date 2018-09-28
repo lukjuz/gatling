@@ -22,12 +22,13 @@ import java.security.MessageDigest
 import io.gatling.commons.validation.Validation
 import io.gatling.core.session._
 import io.gatling.http.ResponseTransformer
-import io.gatling.http.check.HttpCheck
+import io.gatling.http.check.{ ErrorCheck, HttpCheck }
 import io.gatling.http.client.Request
 import io.gatling.http.protocol.HttpProtocol
 
 final case class HttpRequestConfig(
     checks: List[HttpCheck],
+    errorChecks: List[ErrorCheck],
     responseTransformer: Option[ResponseTransformer],
     throttled: Boolean,
     silent: Option[Boolean],

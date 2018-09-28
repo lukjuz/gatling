@@ -29,4 +29,6 @@ object HttpCheckScope {
   case object Chunks extends HttpCheckScope(priority = 4)
   case object Body extends HttpCheckScope(priority = 4)
   case object Time extends HttpCheckScope(priority = 5)
+
+  case object Error extends HttpCheckScope(priority = 6)
 }

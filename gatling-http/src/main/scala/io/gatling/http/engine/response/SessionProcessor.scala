@@ -16,27 +16,43 @@
 
 package io.gatling.http.engine.response
 
-import io.gatling.commons.stats.{ KO, OK, Status }
+import io.gatling.commons.stats.{KO, OK, Status}
 import io.gatling.commons.util.Clock
 import io.gatling.core.session.Session
-import io.gatling.http.cache.{ Http2PriorKnowledgeSupport, HttpCaches }
-import io.gatling.http.check.HttpCheck
+import io.gatling.http.cache.{Http2PriorKnowledgeSupport, HttpCaches}
+import io.gatling.http.check.{ErrorCheck, HttpCheck}
 import io.gatling.http.client.Request
 import io.gatling.http.client.uri.Uri
 import io.gatling.http.cookie.CookieSupport
 import io.gatling.http.protocol.HttpProtocol
 import io.gatling.http.referer.RefererHandling
-import io.gatling.http.response.Response
+import io.gatling.http.response.{ HttpFailure, Response }
 import io.gatling.http.util.HttpHelper
 
 sealed abstract class SessionProcessor(
     silent: Boolean,
     request: Request,
     checks: List[HttpCheck],
+    errorChecks:  List[ErrorCheck],
     httpCaches: HttpCaches,
     httpProtocol: HttpProtocol,
     clock: Clock
 ) {
+
+  def updateSessionCrashedWithChecks(failure: HttpFailure, computeUpdates: Boolean, session: Session): (Session, Option[String]) = {
+    def updateSessionAfterChecks(s1: Session, status: Status): Session = {
+      updateSessionStats(s1, failure.startTimestamp, failure.endTimestamp, status)
+    }
+
+    val (sessionWithCheckSavedValues, checkError) = ErrorCheckProcessor.check(session, failure, errorChecks, computeUpdates)
+
+    val sessionWithHttp2PriorKnowledge = sessionWithCheckSavedValues
+
+    val newStatus = if (checkError.isDefined) KO else OK
+    val newSession = updateSessionAfterChecks(sessionWithHttp2PriorKnowledge, newStatus)
+
+    (newSession, checkError.map(_.message))
+  }
 
   def updateSessionCrashed(session: Session, startTimestamp: Long, endTimestamp: Long): Session =
     updateSessionStats(session, startTimestamp, endTimestamp, KO)
@@ -98,6 +114,7 @@ final class RootSessionProcessor(
     silent: Boolean,
     request: Request,
     checks: List[HttpCheck],
+    errorChecks:  List[ErrorCheck],
     httpCaches: HttpCaches,
     httpProtocol: HttpProtocol,
     clock: Clock
@@ -105,6 +122,7 @@ final class RootSessionProcessor(
       silent,
       request,
       checks,
+      errorChecks,
       httpCaches,
       httpProtocol,
       clock
@@ -120,6 +138,7 @@ final class ResourceSessionProcessor(
     silent: Boolean,
     request: Request,
     checks: List[HttpCheck],
+    errorChecks:  List[ErrorCheck],
     httpCaches: HttpCaches,
     httpProtocol: HttpProtocol,
     clock: Clock
@@ -127,6 +146,7 @@ final class ResourceSessionProcessor(
       silent,
       request,
       checks,
+      errorChecks,
       httpCaches,
       httpProtocol,
       clock
