@@ -73,13 +73,21 @@ class HttpAppHandler extends ChannelDuplexHandler {
     if (isInactive()) {
       return;
     }
+    crash0(ctx, cause, close, tx);
+  }
 
-    tx.listener.onThrowable(cause);
-    tx.requestTimeout.cancel();
-    setInactive();
+  private void crash0(ChannelHandlerContext ctx, Throwable cause, boolean close, HttpTx tx) {
+    try {
+      tx.requestTimeout.cancel();
+      tx.listener.onThrowable(cause);
+      setInactive();
 
-    if (close) {
-      ctx.close();
+    } catch (Exception e) {
+      LOGGER.error("Exception while handling HTTP/1.1 crash, please report to Gatling maintainers", e);
+    } finally {
+      if (close) {
+        ctx.close();
+      }
     }
   }
 
@@ -140,17 +148,26 @@ class HttpAppHandler extends ChannelDuplexHandler {
         }
         boolean last = chunk instanceof LastHttpContent;
 
-        HttpListener listener = tx.listener; // might be null out by setInactive
+        // making a local copy because setInactive might be called (on last)
+        HttpTx tx = this.tx;
+
         if (last) {
           tx.requestTimeout.cancel();
+          setInactive();
           if (tx.closeConnection) {
             ctx.channel().close();
           } else {
             channelPool.offer(ctx.channel());
           }
-          setInactive();
         }
-        listener.onHttpResponseBodyChunk(chunk.content(), last);
+
+        try {
+          tx.listener.onHttpResponseBodyChunk(chunk.content(), last);
+        } catch (Exception e) {
+          // can't let exceptionCaught handle this because setInactive might have been called (on last)
+          crash0(ctx, e, true, tx);
+          throw e;
+        }
       }
     } finally {
       ReferenceCountUtil.release(msg);
@@ -166,7 +183,6 @@ class HttpAppHandler extends ChannelDuplexHandler {
     if (!httpResponseReceived && client.retry(tx, ctx.channel().eventLoop())) {
       // only retry when we haven't started receiving response
       setInactive();
-
     } else {
       crash(ctx, PREMATURE_CLOSE, false);
     }

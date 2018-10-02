@@ -341,8 +341,7 @@ public class DefaultHttpClient implements HttpClient {
   private void sendHttp2RequestsInEventLoop(Pair<Request, HttpListener> requestsAndListeners[], long clientId, boolean shared, EventLoop eventLoop) {
     List<HttpTx> txs = new ArrayList<>();
 
-    for (int i = 0 ; i < requestsAndListeners.length ; i++) {
-       Pair<Request, HttpListener> requestAndListener = requestsAndListeners[i];
+    for (Pair<Request, HttpListener> requestAndListener : requestsAndListeners) {
        Request request = requestAndListener.getLeft();
        HttpListener listener = requestAndListener.getRight();
        txs.add(buildTx(request, clientId, shared, listener, eventLoop));
@@ -516,7 +515,6 @@ public class DefaultHttpClient implements HttpClient {
             LOGGER.debug("Installing SslHandler for {}", tx.request.getUri());
             installSslHandler(tx, channel).addListener(f -> {
               if (tx.requestTimeout.isDone() || !f.isSuccess()) {
-                LOGGER.error("Failed to install SslHandler");
                 channel.close();
                 return;
               }
@@ -644,6 +642,7 @@ public class DefaultHttpClient implements HttpClient {
           openNewChannelRec(remoteAddresses, localAddress, nextI, channelPromise, bootstrap, listener, requestTimeout);
 
         } else {
+          requestTimeout.cancel();
           listener.onThrowable(f.cause());
           channelPromise.setFailure(f.cause());
         }
@@ -677,11 +676,13 @@ public class DefaultHttpClient implements HttpClient {
         if (f.isSuccess()) {
           tx.listener.onTlsHandshakeSuccess();
         } else {
+          tx.requestTimeout.cancel();
           tx.listener.onTlsHandshakeFailure(f.cause());
           tx.listener.onThrowable(f.cause());
         }
       });
     } catch (RuntimeException e) {
+      tx.requestTimeout.cancel();
       tx.listener.onThrowable(e);
       return new DefaultPromise<Channel>(ImmediateEventExecutor.INSTANCE).setFailure(e);
     }

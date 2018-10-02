@@ -17,7 +17,6 @@
 package io.gatling.http.fetch
 
 import scala.collection.mutable
-import scala.util.control.NoStackTrace
 
 import io.gatling.commons.stats.{ KO, OK, Status }
 import io.gatling.commons.util.Clock
@@ -228,13 +227,15 @@ class DefaultResourceAggregator(
 
     pendingResourcesCount -= 1
 
-    if (!silent && status == KO)
+    if (!silent && status == KO) {
       globalStatus = KO
+    }
 
-    if (pendingResourcesCount == 0)
+    if (pendingResourcesCount == 0) {
       done()
-    else
+    } else {
       releaseTokenAndContinue(remote, isHttp2)
+    }
   }
 
   private def cssFetched(uri: Uri, status: Status, responseStatus: HttpResponseStatus, lastModifiedOrEtag: Option[String], content: String): Unit =
@@ -254,7 +255,7 @@ class DefaultResourceAggregator(
   }
 
   override def onCssResourceFetched(uri: Uri, status: Status, session: Session, silent: Boolean, responseStatus: HttpResponseStatus, lastModifiedOrEtag: Option[String], content: String): Unit = {
-    logger.debug(s"Resource $uri was fetched")
+    logger.debug(s"Css resource $uri was fetched")
     this.session = session
     cssFetched(uri, status, responseStatus, lastModifiedOrEtag, content)
     val remote = Remote(uri)
