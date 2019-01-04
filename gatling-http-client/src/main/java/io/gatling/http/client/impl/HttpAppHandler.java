@@ -16,7 +16,6 @@
 
 package io.gatling.http.client.impl;
 
-import io.gatling.http.client.HttpListener;
 import io.gatling.http.client.HttpClientConfig;
 import io.gatling.http.client.ahc.util.HttpUtils;
 import io.gatling.http.client.impl.request.WritableRequest;
@@ -37,7 +36,7 @@ class HttpAppHandler extends ChannelDuplexHandler {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(HttpAppHandler.class);
 
-  private static final IOException PREMATURE_CLOSE = new IOException("Premature close") {
+  static final IOException PREMATURE_CLOSE = new IOException("Premature close") {
     @Override
     public synchronized Throwable fillInStackTrace() {
       return this;
@@ -70,6 +69,11 @@ class HttpAppHandler extends ChannelDuplexHandler {
   }
 
   private void crash(ChannelHandlerContext ctx, Throwable cause, boolean close) {
+    if (cause instanceof Error) {
+      LOGGER.error("Fatal error", cause);
+      System.exit(1);
+    }
+
     if (isInactive()) {
       return;
     }
@@ -108,6 +112,7 @@ class HttpAppHandler extends ChannelDuplexHandler {
 
       LOGGER.debug("Write request {}", request);
 
+      tx.listener.onWrite(ctx.channel());
       request.write(ctx);
     } catch (Exception e) {
       crash(ctx, e, true);
@@ -163,7 +168,7 @@ class HttpAppHandler extends ChannelDuplexHandler {
 
         try {
           tx.listener.onHttpResponseBodyChunk(chunk.content(), last);
-        } catch (Exception e) {
+        } catch (Throwable e) {
           // can't let exceptionCaught handle this because setInactive might have been called (on last)
           crash0(ctx, e, true, tx);
           throw e;
@@ -180,11 +185,15 @@ class HttpAppHandler extends ChannelDuplexHandler {
       return;
     }
 
-    if (!httpResponseReceived && client.retry(tx, ctx.channel().eventLoop())) {
-      // only retry when we haven't started receiving response
-      setInactive();
+    HttpTx tx = this.tx;
+    setInactive();
+    tx.requestTimeout.cancel();
+
+    // only retry when we haven't started receiving response
+    if (!httpResponseReceived && client.canRetry(tx, ctx.channel())) {
+      client.retry(tx, ctx.channel().eventLoop());
     } else {
-      crash(ctx, PREMATURE_CLOSE, false);
+      crash0(ctx, PREMATURE_CLOSE, false, tx);
     }
   }
 

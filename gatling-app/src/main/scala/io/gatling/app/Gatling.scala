@@ -81,6 +81,12 @@ object Gatling extends StrictLogging {
         }
       RunResultProcessor(configuration).processRunResult(runResult).code
     } finally {
-      LoggerFactory.getILoggerFactory.asInstanceOf[LoggerContext].stop()
+      val factory = LoggerFactory.getILoggerFactory
+      try {
+        factory.getClass.getMethod("stop").invoke(factory)
+      } catch {
+        case ex: NoSuchMethodException => //Fail silently if a logging provider other than LogBack is used.
+        case NonFatal(ex)              => logger.warn("Logback failed to shutdown.", ex)
+      }
     }
 }

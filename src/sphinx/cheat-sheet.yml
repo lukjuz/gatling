@@ -277,25 +277,25 @@
           description: Declares a feeder from a CSV file
           syntax:
             - signature: (fileName)
-              description: <i>fileName</i> is the name of the file under the <i>data</i> folder containing the comma separated values to be injected
+              description: <i>fileName</i> is the name of the file under the <i>resources</i> folder containing the comma separated values to be injected
 
         - keyword: tsv
           description: Declares a feeder from a TSV file
           syntax:
             - signature: (fileName)
-              description: <i>fileName</i> is the name of the file under the <i>data</i> folder containing the tabulation separated values to be injected
+              description: <i>fileName</i> is the name of the file under the <i>resources</i> folder containing the tabulation separated values to be injected
 
         - keyword: ssv
           description: Declares a feeder from a SSV file
           syntax:
             - signature: (fileName)
-              description: <i>fileName</i> is the name of the file under the <i>data</i> folder containing the semi-colon separated values to be injected
+              description: <i>fileName</i> is the name of the file under the <i>resources</i> folder containing the semi-colon separated values to be injected
 
         - keyword: jsonFile
           description: Declares a feeder from a JSON file
           syntax:
             - signature: (fileName)
-              description: <i>fileName</i> is the name of the file under the <i>data</i> folder containing JSON file to be injected
+              description: <i>fileName</i> is the name of the file under the <i>resources</i> folder containing JSON file to be injected
 
         - keyword: jsonUrl
           description: Declares a feeder from a JSON url
@@ -327,7 +327,8 @@
         description: Decompress feeder file that is compressed with zip or gzip
 
       - keyword: shard
-        description: Distribute data amongst nodes when running a cluster of injectors (FrontLine only)
+        frontline: true
+        description: Distribute data amongst nodes when running a cluster of injectors
 
       - keyword: readRecords
         description: Return the feeder content as a <code>Seq[Map[String, Any]]</code>
@@ -815,7 +816,7 @@
           example: Email attachment
           syntax:
             - signature: (key, filePath)
-              description: Where <i>key</i> is the name of the field and <i>filePath</i> a path to a file located in /bodies
+              description: Where <i>key</i> is the name of the field and <i>filePath</i> a path to a file located in <i>resources</i>
 
 
 - title: Checks
@@ -1206,7 +1207,13 @@
           description: Binds the sockets from a specific local address instead of the default one
           syntax:
             - signature: (InetAddress)
-              description: Instance of InetAddress representing the address
+              description: Address String that will be turned ino a InetAddress
+
+        - keyword: localAddresses
+          description: Binds the sockets from a list of specific local addresses instead of the default one
+          syntax:
+          - signature: (InetAddress...)
+            description: Address Strings that will be turned into InetAddresses
 
         - keyword: disableCaching
           description: Disables caching features for some http headers and ETag

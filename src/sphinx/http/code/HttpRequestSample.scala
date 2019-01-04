@@ -239,7 +239,7 @@ class HttpRequestSample {
       .body(StringBody(session => """{ "myContent": """" + someGenerator(session) + """" }""")).asJson
       //#StringBody
       //#PebbleBody
-      .body(PebbleStringBody("""{ "myContent": "{myDynamicValue}" }""")).asJson
+      .body(PebbleStringBody("""{ "myContent": "{% if myCondition %}{{myDynamicValue}}{% endif %}" }""")).asJson
 
       // myFileBody.json is a file that contains
       // { "myContent": "{myDynamicValue}" }
@@ -267,7 +267,7 @@ class HttpRequestSample {
     http("foo").get("bar")
       //#response-processors
 
-      // ignore when response status code is 200
+      // ignore when response status code is not 200
       .transformResponse {
         (session, response) =>
           if (response.status.code == 200) {

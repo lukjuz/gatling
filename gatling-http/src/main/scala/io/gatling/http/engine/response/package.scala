@@ -14,19 +14,11 @@
  * limitations under the License.
  */
 
-package io.gatling.http.action.polling
+package io.gatling.http.engine
 
-import io.gatling.core.akka.BaseActor
-import io.gatling.core.session.Session
+import com.typesafe.scalalogging.StrictLogging
 
-import akka.actor.FSM
-
-private[polling] abstract class PollerFSM extends BaseActor with FSM[PollerState, PollerData]
-
-private[polling] sealed trait PollerState
-private[polling] case object Uninitialized extends PollerState
-private[polling] case object Polling extends PollerState
-
-private[polling] sealed trait PollerData
-private[polling] case object NoData extends PollerData
-private[polling] case class PollingData(session: Session) extends PollerData
+package object response extends StrictLogging {
+  val IsHttpDebugEnabled: Boolean = logger.underlying.isDebugEnabled
+  val IsHttpTraceEnabled: Boolean = logger.underlying.isTraceEnabled
+}

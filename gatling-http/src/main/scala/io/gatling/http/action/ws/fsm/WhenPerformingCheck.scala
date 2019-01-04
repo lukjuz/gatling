@@ -60,7 +60,7 @@ trait WhenPerformingCheck { this: WsActor =>
         case WsTextFrameCheck(_, matchConditions, checks) => tryApplyingChecks(message, timestamp, matchConditions, checks, data)
 
         case _ =>
-          logger.debug(s"Received non-matching text frame $message")
+          logger.debug(s"Received unmatched text frame $message")
           // server unmatched message, just log
           logUnmatchedServerMessage(data.session)
           stay()
@@ -72,7 +72,7 @@ trait WhenPerformingCheck { this: WsActor =>
         case WsBinaryFrameCheck(_, matchConditions, checks) => tryApplyingChecks(message, timestamp, matchConditions, checks, data)
 
         case _ =>
-          logger.debug(s"Received non-matching text frame $message")
+          logger.debug(s"Received unmatched binary frame $message")
           // server unmatched message, just log
           logUnmatchedServerMessage(data.session)
           stay()
@@ -124,7 +124,7 @@ trait WhenPerformingCheck { this: WsActor =>
       logger.debug(s"Received matching message $message")
       cancelTimeout() // note, we might already have a Timeout in the mailbox, hence the currentTimeoutId check
       // matching message, apply checks
-      val (sessionWithCheckUpdate, _, checkError) = Check.check(message, session, checks, computeUpdates = false)
+      val (sessionWithCheckUpdate, checkError) = Check.check(message, session, checks)
 
       checkError match {
         case Some(Failure(errorMessage)) =>

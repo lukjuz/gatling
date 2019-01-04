@@ -70,7 +70,7 @@ class SecuredWithProxyMitmActor(
   override protected def connectedRemote(requestRemote: Remote): Remote = proxyRemote
 
   override protected def onClientChannelActive(clientChannel: Channel, pendingRequest: FullHttpRequest, remote: Remote): State = {
-    clientChannel.pipeline.addLast(GatlingHandler, new ClientHandler(self, serverChannel.id, trafficLogger, clock))
+    clientChannel.pipeline.addLast(GatlingClientHandler, new ClientHandler(self, serverChannel.id, trafficLogger, clock))
 
     // send connect request
     val connectRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.CONNECT, s"${remote.host}:${remote.port}")
@@ -83,17 +83,22 @@ class SecuredWithProxyMitmActor(
   when(WaitingForProxyConnectResponse) {
     case Event(ServerChannelInactive, _) =>
       logger.debug(s"serverChannel=${serverChannel.id} closed, state=WaitingForClientChannelConnect, closing")
+      // FIXME what about client channel?
+      // FIXME tell handlers to not notify of inactive state
       stop()
 
     case Event(ClientChannelException(throwable), _) =>
       logger.debug(s"serverChannel=${serverChannel.id}, state=WaitingForClientChannelConnect, client connect failure, replying 500 and closing", throwable)
       serverChannel.reply500AndClose()
+      // FIXME tell handlers to not notify of inactive state
       stop()
 
-    case Event(ClientChannelInactive(inactiveClientChannelId), WaitingForProxyConnectResponseData(remote, pendingRequest, clientChannel)) =>
+    case Event(ClientChannelInactive(inactiveClientChannelId), WaitingForProxyConnectResponseData(_, pendingRequest, clientChannel)) =>
+      pendingRequest.release()
       if (inactiveClientChannelId == clientChannel.id) {
         logger.debug(s"serverChannel=${serverChannel.id}, state=WaitingForClientChannelConnect, client got closed, replying 500 and closing")
         serverChannel.reply500AndClose()
+        // FIXME tell handlers to not notify of inactive state
         stop()
       } else {
         // related to previous channel, ignoring
@@ -109,6 +114,8 @@ class SecuredWithProxyMitmActor(
         clientChannel.pipeline.addFirst(Mitm.SslHandlerName, clientSslHandler)
 
         if (pendingRequest.method == HttpMethod.CONNECT) {
+          pendingRequest.release()
+
           // dealing with origin CONNECT from user-agent
           // install SslHandler on serverChannel with startTls = true so CONNECT response doesn't get encrypted
           val serverSslHandler = new SslHandler(sslServerContext.createSSLEngine(remote.host), true)
@@ -125,6 +132,7 @@ class SecuredWithProxyMitmActor(
       } else {
         serverChannel.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE)
         clientChannel.close()
+        // FIXME tell handlers to not notify of inactive state
         stop()
       }
   }
