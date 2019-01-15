@@ -71,6 +71,7 @@ public class Http2AppHandler extends ChannelDuplexHandler {
       tx.closeConnection = HttpUtils.isConnectionClose(request.getRequest().headers());
       LOGGER.debug("Write request {}", request);
 
+      tx.listener.onWrite(ctx.channel());
       request.write(ctx).addListener(f -> {
         if (f.isSuccess()) {
           Http2Stream stream = connection.stream(nextStreamId);
@@ -123,21 +124,27 @@ public class Http2AppHandler extends ChannelDuplexHandler {
   }
 
   private void crash(ChannelHandlerContext ctx, Throwable cause, HttpListener nonActiveStreamListener, boolean close) {
-      try {
-        if (nonActiveStreamListener != null) {
-          nonActiveStreamListener.onThrowable(cause);
-        }
-        connection.forEachActiveStream(stream -> {
-          HttpTx tx = stream.getProperty(propertyKey);
-          tx.listener.onThrowable(cause);
-          return true;
-        });
-      } catch (Http2Exception e) {
-        LOGGER.error("Can't properly close active streams");
+    try {
+      if (nonActiveStreamListener != null) {
+        nonActiveStreamListener.onThrowable(cause);
       }
+      connection.forEachActiveStream(stream -> {
+        HttpTx tx = stream.getProperty(propertyKey);
+        tx.listener.onThrowable(cause);
+        return true;
+      });
 
-    if (close) {
-      ctx.close();
+    } catch (Http2Exception e) {
+      LOGGER.error("Can't properly close active streams");
+    } finally {
+      if (close) {
+        ctx.close();
+      }
+    }
+
+    if (cause instanceof Error) {
+      LOGGER.error("Fatal error", cause);
+      System.exit(1);
     }
   }
 

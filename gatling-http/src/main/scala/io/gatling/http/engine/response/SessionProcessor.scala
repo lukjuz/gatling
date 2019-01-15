@@ -39,25 +39,19 @@ sealed abstract class SessionProcessor(
     clock:        Clock
 ) {
 
-  def updateSessionCrashedWithChecks(failure: HttpFailure, computeUpdates: Boolean, session: Session): (Session, Session => Session, Option[String]) = {
+  def updateSessionCrashedWithChecks(failure: HttpFailure, session: Session): (Session, Option[String]) = {
     def updateSessionAfterChecks(s1: Session, status: Status): Session = {
       updateSessionStats(s1, failure.startTimestamp, failure.endTimestamp, status)
     }
 
-    val (sessionWithCheckSavedValues, checkUpdates, checkError) = ErrorCheckProcessor.check(session, failure, errorChecks, computeUpdates)
+    val (sessionWithCheckSavedValues, checkError) = ErrorCheckProcessor.check(session, failure, errorChecks)
 
     val sessionWithHttp2PriorKnowledge = sessionWithCheckSavedValues
 
     val newStatus = if (checkError.isDefined) KO else OK
     val newSession = updateSessionAfterChecks(sessionWithHttp2PriorKnowledge, newStatus)
 
-    val updates: Session => Session =
-      if (computeUpdates) {
-        checkUpdates andThen (updateSessionAfterChecks(_, newStatus))
-      } else {
-        identity
-      }
-    (newSession, updates, checkError.map(_.message))
+    (newSession, checkError.map(_.message))
   }
 
   def updateSessionCrashed(session: Session, startTimestamp: Long, endTimestamp: Long): Session =
@@ -77,7 +71,7 @@ sealed abstract class SessionProcessor(
       session
     }
 
-  def updatedSession(session: Session, response: Response, computeUpdates: Boolean): (Session, Session => Session, Option[String]) = {
+  def updatedSession(session: Session, response: Response): (Session, Option[String]) = {
 
     def updateSessionAfterChecks(s1: Session, status: Status): Session = {
       val s2 = CookieSupport.storeCookies(s1, request.getUri, response.cookies, clock.nowMillis)
@@ -86,9 +80,9 @@ sealed abstract class SessionProcessor(
       updateSessionStats(s4, response.startTimestamp, response.endTimestamp, status)
     }
 
-    val (sessionWithCheckSavedValues, checkUpdates, checkError) = CheckProcessor.check(session, response, checks, computeUpdates)
+    val (sessionWithCheckSavedValues, checkError) = CheckProcessor.check(session, response, checks)
     val sessionWithHttp2PriorKnowledge =
-      if (httpProtocol.requestPart.enableHttp2) {
+      if (httpProtocol.enginePart.enableHttp2) {
         httpCaches.updateSessionHttp2PriorKnowledge(sessionWithCheckSavedValues, response)
       } else {
         sessionWithCheckSavedValues
@@ -96,14 +90,7 @@ sealed abstract class SessionProcessor(
 
     val newStatus = if (checkError.isDefined) KO else OK
     val newSession = updateSessionAfterChecks(sessionWithHttp2PriorKnowledge, newStatus)
-
-    val updates: Session => Session =
-      if (computeUpdates) {
-        checkUpdates andThen (httpCaches.updateSessionHttp2PriorKnowledge(_, response)) andThen (updateSessionAfterChecks(_, newStatus))
-      } else {
-        identity
-      }
-    (newSession, updates, checkError.map(_.message))
+    (newSession, checkError.map(_.message))
   }
 
   def updatedRedirectSession(session: Session, response: Response, redirectUri: Uri): Session = {

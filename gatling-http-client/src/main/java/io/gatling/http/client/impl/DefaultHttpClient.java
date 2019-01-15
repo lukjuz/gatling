@@ -42,18 +42,18 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.websocketx.WebSocketFrameAggregator;
 import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketClientCompressionHandler;
 import io.netty.handler.codec.http2.*;
 import io.netty.handler.ssl.*;
 import io.netty.handler.stream.ChunkedWriteHandler;
+import io.netty.resolver.NoopAddressResolverGroup;
 import io.netty.util.concurrent.*;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLSession;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.*;
@@ -62,7 +62,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-import static io.gatling.http.client.ahc.util.MiscUtils.isNonEmpty;
 import static java.util.Collections.singletonList;
 
 public class DefaultHttpClient implements HttpClient {
@@ -81,8 +80,9 @@ public class DefaultHttpClient implements HttpClient {
   private static final String INFLATER_HANDLER = "inflater";
   private static final String CHUNKED_WRITER_HANDLER = "chunked-writer";
   private static final String DIGEST_AUTH_HANDLER = "digest";
-  private static final String WS_OBJECT_AGGREGATOR = "ws-aggregator";
+  private static final String WS_OBJECT_AGGREGATOR = "ws-object-aggregator";
   private static final String WS_COMPRESSION = "ws-compression";
+  private static final String WS_FRAME_AGGREGATOR = "ws-frame-aggregator";
   private static final String APP_WS_HANDLER = "app-ws";
   private static final String ALPN_HANDLER = "alpn";
   private static final String APP_HTTP2_HANDLER = "app-http2";
@@ -139,6 +139,7 @@ public class DefaultHttpClient implements HttpClient {
         .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) config.getConnectTimeout())
         .option(ChannelOption.SO_REUSEADDR, config.isSoReuseAddress())
         .option(ChannelOption.TCP_NODELAY, config.isTcpNoDelay())
+        .resolver(NoopAddressResolverGroup.INSTANCE)
         .handler(new ChannelInitializer<Channel>() {
           @Override
           protected void initChannel(Channel ch) {
@@ -173,6 +174,7 @@ public class DefaultHttpClient implements HttpClient {
             .addLast(HTTP_CLIENT_CODEC, newHttpClientCodec())
             .addLast(WS_OBJECT_AGGREGATOR, new HttpObjectAggregator(8192))
             .addLast(WS_COMPRESSION, WebSocketClientCompressionHandler.INSTANCE)
+            .addLast(WS_FRAME_AGGREGATOR, new WebSocketFrameAggregator(Integer.MAX_VALUE))
             .addLast(APP_WS_HANDLER, new WebSocketHandler(config));
 
           if (config.getAdditionalChannelInitializer() != null) {
@@ -183,7 +185,8 @@ public class DefaultHttpClient implements HttpClient {
     }
 
     private Bootstrap getBootstrapWithProxy(ProxyServer proxy) {
-      return http1Bootstrap.clone().handler(new ChannelInitializer<Channel>() {
+      return http1Bootstrap.clone()
+        .handler(new ChannelInitializer<Channel>() {
 
         @Override
         protected void initChannel(Channel ch) {
@@ -201,8 +204,6 @@ public class DefaultHttpClient implements HttpClient {
   }
 
   private final AtomicBoolean closed = new AtomicBoolean();
-  private final SslContext sslContext;
-  private final SslContext alpnSslContext;
   private final HttpClientConfig config;
   private final MultithreadEventExecutorGroup eventLoopGroup;
   private final AffinityEventLoopPicker eventLoopPicker;
@@ -211,48 +212,6 @@ public class DefaultHttpClient implements HttpClient {
 
   public DefaultHttpClient(HttpClientConfig config) {
     this.config = config;
-    try {
-      SslContextBuilder sslContextBuilder = SslContextBuilder.forClient();
-
-      if (config.getSslSessionCacheSize() > 0) {
-        sslContextBuilder.sessionCacheSize(config.getSslSessionCacheSize());
-      }
-
-      if (config.getSslSessionTimeout() > 0) {
-        sslContextBuilder.sessionTimeout(config.getSslSessionTimeout());
-      }
-
-      if (isNonEmpty(config.getEnabledSslProtocols())) {
-        sslContextBuilder.protocols(config.getEnabledSslProtocols());
-      }
-
-      if (isNonEmpty(config.getEnabledSslCipherSuites())) {
-        sslContextBuilder.ciphers(Arrays.asList(config.getEnabledSslCipherSuites()));
-      } else if (!config.isFilterInsecureCipherSuites()) {
-        sslContextBuilder.ciphers(null, IdentityCipherSuiteFilter.INSTANCE_DEFAULTING_TO_SUPPORTED_CIPHERS);
-      }
-
-      sslContextBuilder.sslProvider(config.isUseOpenSsl() ? SslProvider.OPENSSL : SslProvider.JDK)
-        .keyManager(config.getKeyManagerFactory())
-        .trustManager(config.getTrustManagerFactory());
-
-      this.sslContext = sslContextBuilder.build();
-
-      this.alpnSslContext = sslContextBuilder
-        .applicationProtocolConfig(new ApplicationProtocolConfig(
-          ApplicationProtocolConfig.Protocol.ALPN,
-          // NO_ADVERTISE is currently the only mode supported by both OpenSsl and JDK providers.
-          ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
-          // ACCEPT is currently the only mode supported by both OpenSsl and JDK providers.
-          ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
-          ApplicationProtocolNames.HTTP_2,
-          ApplicationProtocolNames.HTTP_1_1))
-        .build();
-
-    } catch (SSLException e) {
-      throw new IllegalArgumentException("Impossible to create SslContext", e);
-    }
-
     DefaultThreadFactory threadFactory = new DefaultThreadFactory(config.getThreadPoolName());
     eventLoopGroup = config.isUseNativeTransport() ? new EpollEventLoopGroup(0, threadFactory) : new NioEventLoopGroup(0, threadFactory);
     eventLoopPicker = new AffinityEventLoopPicker(eventLoopGroup);
@@ -268,7 +227,7 @@ public class DefaultHttpClient implements HttpClient {
   }
 
   @Override
-  public void sendRequest(Request request, long clientId, boolean shared, HttpListener listener) {
+  public void sendRequest(Request request, long clientId, boolean shared, HttpListener listener, SslContext sslContext, SslContext alpnSslContext) {
     if (isClosed()) {
       return;
     }
@@ -281,15 +240,22 @@ public class DefaultHttpClient implements HttpClient {
 
     EventLoop eventLoop = eventLoopPicker.eventLoopWithAffinity(clientId);
 
+    if (sslContext == null) {
+      sslContext = config.getDefaultSslContext();
+      alpnSslContext = config.getDefaultAlpnSslContext();
+    }
+
+    HttpTx tx = buildTx(request, clientId, shared, listener, sslContext, alpnSslContext);
+
     if (eventLoop.inEventLoop()) {
-      sendRequestInEventLoop(request, clientId, shared, listener, eventLoop);
+      sendTx(tx, eventLoop);
     } else {
-      eventLoop.execute(() -> sendRequestInEventLoop(request, clientId, shared, listener, eventLoop));
+      eventLoop.execute(() -> sendTx(tx, eventLoop));
     }
   }
 
   @Override
-  public void sendHttp2Requests(Pair<Request, HttpListener>[] requestsAndListeners, long clientId, boolean shared) {
+  public void sendHttp2Requests(Pair<Request, HttpListener>[] requestsAndListeners, long clientId, boolean shared, SslContext sslContext, SslContext alpnSslContext) {
     if (isClosed()) {
       return;
     }
@@ -309,10 +275,22 @@ public class DefaultHttpClient implements HttpClient {
 
     EventLoop eventLoop = eventLoopPicker.eventLoopWithAffinity(clientId);
 
+    if (sslContext == null) {
+      sslContext = config.getDefaultSslContext();
+      alpnSslContext = config.getDefaultAlpnSslContext();
+    }
+
+    List<HttpTx> txs = new ArrayList<>();
+    for (Pair<Request, HttpListener> requestAndListener : requestsAndListeners) {
+      Request request = requestAndListener.getLeft();
+      HttpListener listener = requestAndListener.getRight();
+      txs.add(buildTx(request, clientId, shared, listener, sslContext, alpnSslContext));
+    }
+
     if (eventLoop.inEventLoop()) {
-      sendHttp2RequestsInEventLoop(requestsAndListeners, clientId, shared, eventLoop);
+      sendHttp2Txs(txs, eventLoop);
     } else {
-      eventLoop.execute(() -> sendHttp2RequestsInEventLoop(requestsAndListeners, clientId, shared, eventLoop));
+      eventLoop.execute(() -> sendHttp2Txs(txs, eventLoop));
     }
   }
 
@@ -327,40 +305,26 @@ public class DefaultHttpClient implements HttpClient {
     return resources;
   }
 
-  private HttpTx buildTx(Request request, long clientId, boolean shared, HttpListener listener, EventLoop eventLoop) {
-    RequestTimeout requestTimeout = RequestTimeout.scheduleRequestTimeout(request.getRequestTimeout(), listener, eventLoop);
+  private HttpTx buildTx(Request request, long clientId, boolean shared, HttpListener listener, SslContext sslContext, SslContext alpnSslContext) {
+    RequestTimeout requestTimeout = RequestTimeout.requestTimeout(request.getRequestTimeout(), listener);
     ChannelPoolKey key = new ChannelPoolKey(shared ? -1 : clientId, RemoteKey.newKey(request.getUri(), request.getVirtualHost(), request.getProxyServer()));
-    return new HttpTx(request, listener, requestTimeout, key, config.getMaxRetry());
+    return new HttpTx(request, listener, requestTimeout, key, config.getMaxRetry(), sslContext, alpnSslContext);
   }
 
-  private void sendRequestInEventLoop(Request request, long clientId, boolean shared, HttpListener listener, EventLoop eventLoop) {
-    HttpTx tx = buildTx(request, clientId, shared, listener, eventLoop);
-    sendTx(tx, eventLoop);
+  boolean canRetry(HttpTx tx, Channel channel) {
+    return ChannelPool.isReused(channel) // only retry polled keep-alive connections = when keep-alive timeout triggered server side while we were writing
+      && !(tx.request.getBody() instanceof InputStreamRequestBody) // InputStreamRequestBody can't be replayed
+      && tx.remainingTries > 0;
   }
 
-  private void sendHttp2RequestsInEventLoop(Pair<Request, HttpListener> requestsAndListeners[], long clientId, boolean shared, EventLoop eventLoop) {
-    List<HttpTx> txs = new ArrayList<>();
-
-    for (Pair<Request, HttpListener> requestAndListener : requestsAndListeners) {
-       Request request = requestAndListener.getLeft();
-       HttpListener listener = requestAndListener.getRight();
-       txs.add(buildTx(request, clientId, shared, listener, eventLoop));
-    }
-
-    sendHttp2Txs(txs, eventLoop);
-  }
-
-  boolean retry(HttpTx tx, EventLoop eventLoop) {
+  void retry(HttpTx tx, EventLoop eventLoop) {
     if (isClosed()) {
-      return false;
+      return;
     }
 
-    if (tx.remainingTries > 0 && !(tx.request.getBody() instanceof InputStreamRequestBody)) {
-      tx.remainingTries = tx.remainingTries - 1;
-      sendTx(tx, eventLoop);
-      return true;
-    }
-    return false;
+    tx.remainingTries = tx.remainingTries - 1;
+    LOGGER.debug("Retrying, remaining {}", tx.remainingTries);
+    sendTx(tx, eventLoop);
   }
 
   private void sendTx(HttpTx tx, EventLoop eventLoop) {
@@ -369,6 +333,9 @@ public class DefaultHttpClient implements HttpClient {
     Request request = tx.request;
     HttpListener listener = tx.listener;
     RequestTimeout requestTimeout = tx.requestTimeout;
+
+    // start timeout
+    tx.requestTimeout.start(eventLoop);
 
     // use a fresh channel for WebSocket
     Channel pooledChannel = request.getUri().isWebSocket() ? null : resources.channelPool.poll(tx.key);
@@ -404,12 +371,17 @@ public class DefaultHttpClient implements HttpClient {
   }
 
   private void sendHttp2Txs(List<HttpTx> txs, EventLoop eventLoop) {
-    HttpTx tx = txs.get(0);
 
+    HttpTx tx = txs.get(0);
     EventLoopResources resources = eventLoopResources(eventLoop);
     Request request = tx.request;
     HttpListener listener = tx.listener;
     RequestTimeout requestTimeout = tx.requestTimeout;
+
+    // start timeouts
+    for (HttpTx t : txs) {
+      t.requestTimeout.start(eventLoop);
+    }
 
     resolveRemoteAddresses(request, eventLoop, listener, requestTimeout)
        .addListener((Future<List<InetSocketAddress>> whenRemoteAddresses) -> {
@@ -468,10 +440,16 @@ public class DefaultHttpClient implements HttpClient {
   }
 
   private Future<List<InetSocketAddress>> resolveRemoteAddresses(Request request, EventLoop eventLoop, HttpListener listener, RequestTimeout requestTimeout) {
-    if (!request.getUri().isSecured() && request.getProxyServer() instanceof HttpProxyServer) {
-      // directly connect to proxy over clear HTTP
-      InetSocketAddress remoteAddress = ((HttpProxyServer) request.getProxyServer()).getAddress();
+    if (request.getProxyServer() instanceof HttpProxyServer) {
+      InetSocketAddress remoteAddress =
+              request.getUri().isSecured() ?
+                      // HttpProxyHandler will take care of the connect logic
+                      InetSocketAddress.createUnresolved(request.getUri().getHost(), request.getUri().getExplicitPort()) :
+                      // directly connect to proxy over clear HTTP
+                      ((HttpProxyServer) request.getProxyServer()).getAddress();
+
       return ImmediateEventExecutor.INSTANCE.newSucceededFuture(singletonList(remoteAddress));
+
     } else {
       Promise<List<InetSocketAddress>> p = eventLoop.newPromise();
 
@@ -489,6 +467,7 @@ public class DefaultHttpClient implements HttpClient {
               listener.onThrowable(whenAddresses.cause());
             }
             p.setFailure(whenAddresses.cause());
+            requestTimeout.cancel();
           }
         });
       return p;
@@ -625,9 +604,8 @@ public class DefaultHttpClient implements HttpClient {
 
     whenChannel.addListener(f -> {
       if (f.isSuccess()) {
-        Channel channel = whenChannel.channel();
-        listener.onTcpConnectSuccess(remoteAddress, channel);
-        channelPromise.setSuccess(channel);
+        listener.onTcpConnectSuccess(remoteAddress);
+        channelPromise.setSuccess(whenChannel.channel());
 
       } else {
         listener.onTcpConnectFailure(remoteAddress, f.cause());
@@ -652,10 +630,8 @@ public class DefaultHttpClient implements HttpClient {
 
   private Future<Channel> installSslHandler(HttpTx tx, Channel channel) {
 
-    SslContext sslCtx = tx.request.isAlpnRequired() ? alpnSslContext : sslContext;
-
     try {
-      SslHandler sslHandler = SslHandlers.newSslHandler(sslCtx, channel.alloc(), tx.request.getUri(), tx.request.getVirtualHost(), config);
+      SslHandler sslHandler = SslHandlers.newSslHandler(tx.sslContext(), channel.alloc(), tx.request.getUri(), tx.request.getVirtualHost(), config);
       tx.listener.onTlsHandshakeAttempt();
 
       ChannelPipeline pipeline = channel.pipeline();
@@ -663,12 +639,6 @@ public class DefaultHttpClient implements HttpClient {
       pipeline.addAfter(after, SSL_HANDLER, sslHandler);
 
       return sslHandler.handshakeFuture().addListener(f -> {
-
-        SSLSession sslSession = sslHandler.engine().getHandshakeSession();
-        if (sslSession != null && sslSession.isValid() && config.isDisableSslSessionResumption()) {
-          sslSession.invalidate();
-        }
-
         if (tx.requestTimeout.isDone()) {
           return;
         }

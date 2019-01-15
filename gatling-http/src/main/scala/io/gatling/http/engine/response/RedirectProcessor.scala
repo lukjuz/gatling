@@ -45,16 +45,19 @@ object RedirectProcessor {
       .remove(HeaderNames.Host)
       .remove(HeaderNames.ContentLength)
       .remove(HeaderNames.Cookie)
+      .remove(HeaderNames.Authorization)
+      .remove(HeaderNames.Origin)
+      .set(HeaderNames.Referer, originalRequest.getUri.toString)
 
-    if (!keepBody)
+    if (!keepBody) {
       newHeaders.remove(HeaderNames.ContentType)
+    }
 
     val requestBuilder = new AhcRequestBuilder(if (switchToGet) GET else originalMethod, redirectUri)
       .setHeaders(newHeaders)
       .setHttp2Enabled(originalRequest.isHttp2Enabled)
       .setLocalAddress(originalRequest.getLocalAddress)
       .setNameResolver(originalRequest.getNameResolver)
-      .setProxyServer(originalRequest.getProxyServer)
       .setRealm(originalRequest.getRealm)
       .setRequestTimeout(originalRequest.getRequestTimeout)
       .setDefaultCharset(defaultCharset)

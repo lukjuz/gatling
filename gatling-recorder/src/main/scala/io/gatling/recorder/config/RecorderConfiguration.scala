@@ -106,13 +106,12 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
   private def buildConfig(config: Config): RecorderConfiguration = {
     import ConfigKeys._
 
-    def getSimulationsFolder(folder: String) = {
+    def getSimulationsFolder(folder: String) =
       folder.trimToOption match {
         case Some(f)                               => f
-        case _ if sys.env.contains("GATLING_HOME") => resourcesDirectory.toFile.toString
+        case _ if sys.env.contains("GATLING_HOME") => simulationsDirectory.toFile.toString
         case _                                     => userHome
       }
-    }
 
     def getResourcesFolder =
       if (config.hasPath(core.ResourcesFolder)) config.getString(core.ResourcesFolder)
@@ -141,7 +140,8 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
         followRedirect = config.getBoolean(http.FollowRedirect),
         inferHtmlResources = config.getBoolean(http.InferHtmlResources),
         removeCacheHeaders = config.getBoolean(http.RemoveCacheHeaders),
-        checkResponseBodies = config.getBoolean(http.CheckResponseBodies)
+        checkResponseBodies = config.getBoolean(http.CheckResponseBodies),
+        useSimulationAsPrefix = config.getBoolean(http.UseSimulationAsPrefix)
       ),
       proxy = ProxyConfiguration(
         port = config.getInt(proxy.Port),
@@ -203,11 +203,12 @@ private[recorder] case class CoreConfiguration(
 )
 
 private[recorder] case class HttpConfiguration(
-    automaticReferer:    Boolean,
-    followRedirect:      Boolean,
-    inferHtmlResources:  Boolean,
-    removeCacheHeaders:  Boolean,
-    checkResponseBodies: Boolean
+    automaticReferer:      Boolean,
+    followRedirect:        Boolean,
+    inferHtmlResources:    Boolean,
+    removeCacheHeaders:    Boolean,
+    checkResponseBodies:   Boolean,
+    useSimulationAsPrefix: Boolean
 )
 
 private[recorder] case class KeyStoreConfiguration(

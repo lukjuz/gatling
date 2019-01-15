@@ -16,18 +16,17 @@
 
 package io.gatling.http.engine
 
-import io.gatling.commons.util.Ssl._
 import io.gatling.commons.util.SystemProps._
 import io.gatling.core.CoreComponents
 import io.gatling.http.client.{ HttpClient, HttpClientConfig }
 import io.gatling.http.client.impl.DefaultHttpClient
+import io.gatling.http.util._
 
 import com.typesafe.scalalogging.StrictLogging
-import io.netty.handler.ssl.util.InsecureTrustManagerFactory
 
 private[gatling] object HttpClientFactory {
 
-  def apply(coreComponents: CoreComponents): HttpClientFactory =
+  def apply(coreComponents: CoreComponents, sslContextsFactory: SslContextsFactory): HttpClientFactory =
     coreComponents.configuration.resolve(
       // [fl]
       //
@@ -36,7 +35,7 @@ private[gatling] object HttpClientFactory {
       //
       //
       // [fl]
-      new DefaultHttpClientFactory(coreComponents)
+      new DefaultHttpClientFactory(coreComponents, sslContextsFactory)
     )
 }
 
@@ -45,56 +44,33 @@ private[gatling] trait HttpClientFactory {
   def newClient: HttpClient
 }
 
-private[gatling] class DefaultHttpClientFactory(coreComponents: CoreComponents)
+private[gatling] class DefaultHttpClientFactory(coreComponents: CoreComponents, sslContextsFactory: SslContextsFactory)
   extends HttpClientFactory
   with EventLoopGroups
   with StrictLogging {
 
-  private val configuration = coreComponents.configuration
-  private val ahcConfig = configuration.http.ahc
-  setSystemPropertyIfUndefined("io.netty.allocator.type", configuration.http.ahc.allocator)
-  setSystemPropertyIfUndefined("io.netty.maxThreadLocalCharBufferSize", configuration.http.ahc.maxThreadLocalCharBufferSize)
+  private val httpConfig = coreComponents.configuration.http
+  setSystemPropertyIfUndefined("io.netty.allocator.type", httpConfig.advanced.allocator)
+  setSystemPropertyIfUndefined("io.netty.maxThreadLocalCharBufferSize", httpConfig.advanced.maxThreadLocalCharBufferSize)
 
   private[gatling] def newClientConfig(): HttpClientConfig = {
-    val clientConfig = new HttpClientConfig()
-      .setConnectTimeout(ahcConfig.connectTimeout.toMillis)
-      .setHandshakeTimeout(ahcConfig.handshakeTimeout.toMillis)
-      .setChannelPoolIdleTimeout(ahcConfig.pooledConnectionIdleTimeout.toMillis)
-      .setMaxRetry(ahcConfig.maxRetry)
-      .setEnableSni(ahcConfig.enableSni)
-      .setEnableHostnameVerification(ahcConfig.enableHostnameVerification)
-      .setEnabledSslProtocols(ahcConfig.sslEnabledProtocols match {
-        case Nil => null
-        case ps  => ps.toArray
-      })
-      .setFilterInsecureCipherSuites(ahcConfig.filterInsecureCipherSuites)
-      .setWebSocketMaxFramePayloadLength(Int.MaxValue)
-      .setDefaultCharset(configuration.core.charset)
-      .setUseOpenSsl(ahcConfig.useOpenSsl)
-      .setUseNativeTransport(ahcConfig.useNativeTransport)
-      .setSslSessionCacheSize(ahcConfig.sslSessionCacheSize)
-      .setSslSessionTimeout(ahcConfig.sslSessionTimeout.toSeconds)
-      .setDisableSslSessionResumption(ahcConfig.disableSslSessionResumption)
-      .setTcpNoDelay(ahcConfig.tcpNoDelay)
-      .setSoReuseAddress(ahcConfig.soReuseAddress)
-      .setEnableZeroCopy(ahcConfig.enableZeroCopy)
+
+    val SslContexts(defaultSslContext, defaultAlpnSslContext) = sslContextsFactory.newSslContexts(true)
+    new HttpClientConfig()
+      .setDefaultSslContext(defaultSslContext)
+      .setDefaultAlpnSslContext(defaultAlpnSslContext.orNull)
+      .setConnectTimeout(httpConfig.advanced.connectTimeout.toMillis)
+      .setHandshakeTimeout(httpConfig.advanced.handshakeTimeout.toMillis)
+      .setChannelPoolIdleTimeout(httpConfig.advanced.pooledConnectionIdleTimeout.toMillis)
+      .setMaxRetry(httpConfig.advanced.maxRetry)
+      .setEnableSni(httpConfig.advanced.enableSni)
+      .setEnableHostnameVerification(httpConfig.advanced.enableHostnameVerification)
+      .setDefaultCharset(coreComponents.configuration.core.charset)
+      .setUseNativeTransport(httpConfig.advanced.useNativeTransport)
+      .setTcpNoDelay(httpConfig.advanced.tcpNoDelay)
+      .setSoReuseAddress(httpConfig.advanced.soReuseAddress)
+      .setEnableZeroCopy(httpConfig.advanced.enableZeroCopy)
       .setThreadPoolName("gatling-http")
-
-    if (ahcConfig.sslEnabledCipherSuites.nonEmpty) {
-      clientConfig.setEnabledSslCipherSuites(ahcConfig.sslEnabledCipherSuites.toArray)
-    }
-
-    val keyManagerFactory = configuration.http.ssl.keyStore
-      .map(config => newKeyManagerFactory(config.storeType, config.file, config.password, config.algorithm))
-      .orNull
-
-    val trustManagerFactory = configuration.http.ssl.trustStore
-      .map(config => newTrustManagerFactory(config.storeType, config.file, config.password, config.algorithm))
-      .orElse(if (ahcConfig.useInsecureTrustManager) Some(InsecureTrustManagerFactory.INSTANCE) else None).orNull
-
-    clientConfig
-      .setKeyManagerFactory(keyManagerFactory)
-      .setTrustManagerFactory(trustManagerFactory)
   }
 
   override def newClient: HttpClient = {

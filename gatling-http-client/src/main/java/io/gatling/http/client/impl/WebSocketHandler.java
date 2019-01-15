@@ -29,23 +29,17 @@ import io.netty.handler.codec.http.websocketx.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+import static io.gatling.http.client.impl.HttpAppHandler.PREMATURE_CLOSE;
 
 public class WebSocketHandler extends ChannelDuplexHandler {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(WebSocketHandler.class);
 
-  private static final IOException PREMATURE_CLOSE = new IOException("Premature close") {
-    @Override
-    public synchronized Throwable fillInStackTrace() {
-      return this;
-    }
-  };
-
   private final HttpClientConfig config;
   private HttpTx tx;
   private WebSocketListener wsListener;
   private WebSocketClientHandshaker handshaker;
+  private boolean remotelyClosed;
 
   WebSocketHandler(HttpClientConfig config) {
     this.config = config;
@@ -89,10 +83,10 @@ public class WebSocketHandler extends ChannelDuplexHandler {
           WebSocketClientHandshakerFactory.newHandshaker(
             tx.request.getUri().toJavaNetURI(),
             WebSocketVersion.V13,
-            null,
+            tx.request.getWsSubprotocol(),
             true,
             request.getRequest().headers(),
-            config.getWebSocketMaxFramePayloadLength());
+            Integer.MAX_VALUE);
 
         handshaker.handshake(ctx.channel());
 
@@ -119,11 +113,15 @@ public class WebSocketHandler extends ChannelDuplexHandler {
       try {
         // received 101 response
         FullHttpResponse response = (FullHttpResponse) msg;
-        handshaker.finishHandshake(ch, response);
-        tx.requestTimeout.cancel();
+        try {
+          handshaker.finishHandshake(ch, response);
+          tx.requestTimeout.cancel();
 
-        wsListener.onHttpResponse(response.status(), response.headers());
-        wsListener.openWebSocket(ch);
+          wsListener.onHttpResponse(response.status(), response.headers());
+          wsListener.openWebSocket(ch);
+        } finally {
+          response.release();
+        }
 
       } catch (WebSocketHandshakeException e) {
         crash(ctx, e, true);
@@ -132,22 +130,31 @@ public class WebSocketHandler extends ChannelDuplexHandler {
     }
 
     WebSocketFrame frame = (WebSocketFrame) msg;
-    if (frame instanceof TextWebSocketFrame) {
-      wsListener.onTextFrame((TextWebSocketFrame) frame);
-    } else if (frame instanceof BinaryWebSocketFrame) {
-      wsListener.onBinaryFrame((BinaryWebSocketFrame) frame);
-    } else if (frame instanceof PongWebSocketFrame) {
-      wsListener.onPongFrame((PongWebSocketFrame) frame);
-    } else if (frame instanceof CloseWebSocketFrame) {
-      wsListener.onCloseFrame((CloseWebSocketFrame) frame);
-      ch.close();
+    try {
+      if (frame instanceof TextWebSocketFrame) {
+        wsListener.onTextFrame((TextWebSocketFrame) frame);
+      } else if (frame instanceof BinaryWebSocketFrame) {
+        wsListener.onBinaryFrame((BinaryWebSocketFrame) frame);
+      } else if (frame instanceof PingWebSocketFrame) {
+        ctx.write(new PongWebSocketFrame(frame.content().retain()));
+      } else if (frame instanceof PongWebSocketFrame) {
+        wsListener.onPongFrame((PongWebSocketFrame) frame);
+      } else if (frame instanceof CloseWebSocketFrame) {
+        remotelyClosed = true;
+        wsListener.onCloseFrame((CloseWebSocketFrame) frame);
+        ch.close();
+      }
+    } finally {
+      frame.release();
     }
   }
 
   @Override
   public void channelInactive(ChannelHandlerContext ctx) {
     LOGGER.debug("channelInactive");
-    crash(ctx, PREMATURE_CLOSE, false);
+    if (!remotelyClosed) {
+      crash(ctx, PREMATURE_CLOSE, false);
+    }
   }
 
   @Override

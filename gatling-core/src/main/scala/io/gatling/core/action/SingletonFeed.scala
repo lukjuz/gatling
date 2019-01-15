@@ -36,10 +36,11 @@ class SingletonFeed[T](val feeder: Feeder[T]) extends BaseActor {
       def translateRecord(record: Record[T], suffix: Int): Record[T] = record.map { case (key, value) => (key + suffix) -> value }
 
       def pollRecord(): Validation[Record[T]] =
-        if (!feeder.hasNext)
+        if (!feeder.hasNext) {
           "Feeder is now empty, stopping engine".failure
-        else
-          feeder.next().success
+        } else {
+          safely(error => s"Feeder crashed: $error")(feeder.next().success)
+        }
 
       def feedRecords(numberOfRecords: Int): Validation[Session] =
         numberOfRecords match {
@@ -52,7 +53,7 @@ class SingletonFeed[T](val feeder: Feeder[T]) extends BaseActor {
               for (record1 <- record1V; record2 <- record2V) yield record1 ++ record2
             }
             translatedRecords.map(session.setAll)
-          case n => s"$n is not a valid number of records".failure
+          case _ => s"$numberOfRecords is not a valid number of records".failure
         }
 
       val newSession = number(session).flatMap(feedRecords) match {

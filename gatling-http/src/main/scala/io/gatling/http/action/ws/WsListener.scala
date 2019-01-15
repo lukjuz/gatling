@@ -61,7 +61,6 @@ class WsListener(wsActor: ActorRef, statsEngine: StatsEngine, clock: Clock) exte
   //
   //
   //
-  //
   //[fl]
 
   override def onHttpResponse(httpResponseStatus: HttpResponseStatus, httpHeaders: HttpHeaders): Unit = {
@@ -81,7 +80,7 @@ class WsListener(wsActor: ActorRef, statsEngine: StatsEngine, clock: Clock) exte
   override def onBinaryFrame(frame: BinaryWebSocketFrame): Unit =
     wsActor ! BinaryFrameReceived(ByteBufUtils.byteBuf2Bytes(frame.content()), clock.nowMillis)
 
-  override def onPongFrame(pongWebSocketFrame: PongWebSocketFrame): Unit =
+  override def onPongFrame(frame: PongWebSocketFrame): Unit =
     logger.debug("Received PONG frame")
 
   override def onThrowable(t: Throwable): Unit =

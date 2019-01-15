@@ -58,11 +58,14 @@ class SecuredNoProxyMitmActor(
 
   override protected def onClientChannelActive(clientChannel: Channel, pendingRequest: FullHttpRequest, remote: Remote): State = {
     val clientSslHandler = new SslHandler(SslClientContext.createSSLEngine(clientChannel.alloc, remote))
-    clientChannel.pipeline.addLast(GatlingHandler, new ClientHandler(self, serverChannel.id, trafficLogger, clock))
+    clientChannel.pipeline.addLast(GatlingClientHandler, new ClientHandler(self, serverChannel.id, trafficLogger, clock))
     clientChannel.pipeline.addFirst(Mitm.SslHandlerName, clientSslHandler)
 
     // DIFF FROM HTTP
     if (pendingRequest.method == HttpMethod.CONNECT) {
+      // request won't be propagated
+      pendingRequest.release()
+
       // install SslHandler on serverChannel with startTls = true so CONNECT response doesn't get encrypted
       val serverSslHandler = new SslHandler(sslServerContext.createSSLEngine(remote.host), true)
       serverChannel.pipeline.addFirst(SslHandlerName, serverSslHandler)
