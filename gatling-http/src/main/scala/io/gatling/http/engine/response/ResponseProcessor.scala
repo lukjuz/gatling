@@ -69,7 +69,7 @@ class DefaultResponseProcessor(
         nextExecutor.executeNextOnCrash(sessionWithUpdatedStats, failure.endTimestamp)
       }
     } else {
-      val (newSession, updates, errorMessage) = sessionProcessor.updateSessionCrashedWithChecks(failure, computeUpdates = false, tx.session)
+      val (newSession, errorMessage) = sessionProcessor.updateSessionCrashedWithChecks(failure, tx.session)
       val status = if (errorMessage.isDefined) KO else OK
 
       statsProcessor.reportStats(tx.fullRequestName, tx.request.clientRequest, newSession, status, failure, errorMessage)

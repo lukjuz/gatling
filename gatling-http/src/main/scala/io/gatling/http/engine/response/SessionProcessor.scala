@@ -39,25 +39,19 @@ sealed abstract class SessionProcessor(
     clock:        Clock
 ) {
 
-  def updateSessionCrashedWithChecks(failure: HttpFailure, computeUpdates: Boolean, session: Session): (Session, Session => Session, Option[String]) = {
+  def updateSessionCrashedWithChecks(failure: HttpFailure, session: Session): (Session, Option[String]) = {
     def updateSessionAfterChecks(s1: Session, status: Status): Session = {
       updateSessionStats(s1, failure.startTimestamp, failure.endTimestamp, status)
     }
 
-    val (sessionWithCheckSavedValues, checkUpdates, checkError) = ErrorCheckProcessor.check(session, failure, errorChecks, computeUpdates)
+    val (sessionWithCheckSavedValues, checkError) = ErrorCheckProcessor.check(session, failure, errorChecks)
 
     val sessionWithHttp2PriorKnowledge = sessionWithCheckSavedValues
 
     val newStatus = if (checkError.isDefined) KO else OK
     val newSession = updateSessionAfterChecks(sessionWithHttp2PriorKnowledge, newStatus)
 
-    val updates: Session => Session =
-      if (computeUpdates) {
-        checkUpdates andThen (updateSessionAfterChecks(_, newStatus))
-      } else {
-        identity
-      }
-    (newSession, updates, checkError.map(_.message))
+    (newSession, checkError.map(_.message))
   }
 
   def updateSessionCrashed(session: Session, startTimestamp: Long, endTimestamp: Long): Session =

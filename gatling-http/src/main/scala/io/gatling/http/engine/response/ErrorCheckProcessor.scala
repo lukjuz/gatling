@@ -24,7 +24,7 @@ import io.gatling.http.response.HttpFailure
 
 object ErrorCheckProcessor {
 
-  private[response] def check(session: Session, failure: HttpFailure, checks: List[ErrorCheck], computeUpdates: Boolean): (Session, Session => Session, Option[Failure]) = {
-    Check.check(failure, session, checks, computeUpdates)
+  private[response] def check(session: Session, failure: HttpFailure, checks: List[ErrorCheck]): (Session, Option[Failure]) = {
+    Check.check(failure, session, checks)
   }
 }
