@@ -16,11 +16,11 @@
 
 package io.gatling.http.engine.response
 
-import io.gatling.commons.stats.{KO, OK, Status}
+import io.gatling.commons.stats.{ KO, OK, Status }
 import io.gatling.commons.util.Clock
 import io.gatling.core.session.Session
-import io.gatling.http.cache.{Http2PriorKnowledgeSupport, HttpCaches}
-import io.gatling.http.check.{ErrorCheck, HttpCheck}
+import io.gatling.http.cache.{ Http2PriorKnowledgeSupport, HttpCaches }
+import io.gatling.http.check.{ ErrorCheck, HttpCheck }
 import io.gatling.http.client.Request
 import io.gatling.http.client.uri.Uri
 import io.gatling.http.cookie.CookieSupport
@@ -33,7 +33,7 @@ sealed abstract class SessionProcessor(
     silent: Boolean,
     request: Request,
     checks: List[HttpCheck],
-    errorChecks:  List[ErrorCheck],
+    errorChecks: List[ErrorCheck],
     httpCaches: HttpCaches,
     httpProtocol: HttpProtocol,
     clock: Clock
@@ -114,7 +114,7 @@ final class RootSessionProcessor(
     silent: Boolean,
     request: Request,
     checks: List[HttpCheck],
-    errorChecks:  List[ErrorCheck],
+    errorChecks: List[ErrorCheck],
     httpCaches: HttpCaches,
     httpProtocol: HttpProtocol,
     clock: Clock
@@ -138,7 +138,7 @@ final class ResourceSessionProcessor(
     silent: Boolean,
     request: Request,
     checks: List[HttpCheck],
-    errorChecks:  List[ErrorCheck],
+    errorChecks: List[ErrorCheck],
     httpCaches: HttpCaches,
     httpProtocol: HttpProtocol,
     clock: Clock

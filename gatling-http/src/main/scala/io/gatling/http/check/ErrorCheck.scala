@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,8 +29,7 @@ import io.gatling.http.response.HttpFailure
  * @param wrapped the underlying check
  * @param scope the part of the response this check targets
  */
-case class ErrorCheck(wrapped: Check[HttpFailure], scope: HttpCheckScope)
-  extends Check[HttpFailure] {
+final case class ErrorCheck(wrapped: Check[HttpFailure], scope: HttpCheckScope) extends Check[HttpFailure] {
   override def check(error: HttpFailure, session: Session, preparedCache: JMap[Any, Any]): Validation[CheckResult] =
     wrapped.check(error, session, preparedCache)
 }

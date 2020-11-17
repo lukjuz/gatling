@@ -17,7 +17,7 @@
 package io.gatling.http.check
 
 import io.gatling.commons.validation._
-import io.gatling.core.check.{Check, Preparer, Specializer}
+import io.gatling.core.check.{ Check, Preparer, Specializer }
 import io.gatling.http.check.HttpCheckScope._
 import io.gatling.http.response._
 
@@ -28,7 +28,7 @@ object HttpCheckBuilders {
   val UrlStringPreparer: Preparer[Response, String] = _.request.getUri.toFullUrl.success
 
   val PassThroughErrorPreparer: Preparer[HttpFailure, HttpFailure] = _.success
-  val ErrorSpecializer = errorSpecializer(Error)
+  val ErrorSpecializer: Specializer[ErrorCheck, HttpFailure] = errorSpecializer(Error)
 
   private def errorSpecializer(target: HttpCheckScope): Specializer[ErrorCheck, HttpFailure] =
     (wrapped: Check[HttpFailure]) => ErrorCheck(wrapped, target)

@@ -20,20 +20,22 @@ import java.security.MessageDigest
 
 import scala.collection.breakOut
 import scala.concurrent.duration.FiniteDuration
-import io.gatling.core.body.{Body, RawFileBodies}
+
+import io.gatling.core.body.{ Body, RawFileBodies }
 import io.gatling.core.check.ChecksumCheck
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session._
 import io.gatling.http.ResponseTransformer
 import io.gatling.http.action.HttpRequestActionBuilder
 import io.gatling.http.cache.HttpCaches
-import io.gatling.http.check.{ErrorCheck, HttpCheck}
+import io.gatling.http.check.{ ErrorCheck, HttpCheck }
 import io.gatling.http.check.HttpCheckScope._
 import io.gatling.http.engine.response.IsHttpDebugEnabled
 import io.gatling.http.protocol.HttpProtocol
 import io.gatling.http.request._
+
 import com.softwaremill.quicklens._
-import io.netty.handler.codec.http.{HttpHeaderNames, HttpHeaderValues}
+import io.netty.handler.codec.http.{ HttpHeaderNames, HttpHeaderValues }
 
 object HttpAttributes {
   val Empty: HttpAttributes =
