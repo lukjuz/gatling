@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,18 +22,18 @@ import io.gatling.charts.stats.buffers._
 import io.gatling.commons.stats.{ Group, OK }
 import io.gatling.core.config.GatlingConfiguration
 
-private[stats] class ResultsHolder(val minTimestamp: Long, val maxTimestamp: Long, val buckets: Array[Int])(implicit configuration: GatlingConfiguration)
-  extends GeneralStatsBuffers(math.ceil((maxTimestamp - minTimestamp) / 1000.0).toInt)
-  with Buckets
-  with RunTimes
-  with NamesBuffers
-  with RequestsPerSecBuffers
-  with ResponseTimeRangeBuffers
-  with SessionDeltaPerSecBuffers
-  with ResponsesPerSecBuffers
-  with ErrorsBuffers
-  with RequestPercentilesBuffers
-  with GroupPercentilesBuffers {
+private class ResultsHolder(val minTimestamp: Long, val maxTimestamp: Long, val buckets: Array[Int])(implicit configuration: GatlingConfiguration)
+    extends GeneralStatsBuffers(math.ceil((maxTimestamp - minTimestamp) / 1000.0).toInt)
+    with Buckets
+    with RunTimes
+    with NamesBuffers
+    with RequestsPerSecBuffers
+    with ResponseTimeRangeBuffers
+    with SessionDeltaPerSecBuffers
+    with ResponsesPerSecBuffers
+    with ErrorsBuffers
+    with RequestPercentilesBuffers
+    with GroupPercentilesBuffers {
 
   def addUserRecord(record: UserRecord): Unit = {
     addSessionBuffers(record)

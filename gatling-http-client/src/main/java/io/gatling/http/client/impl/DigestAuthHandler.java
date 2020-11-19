@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.util.ReferenceCountUtil;
 
 import java.util.List;
 
@@ -55,6 +56,7 @@ class DigestAuthHandler extends ChannelInboundHandlerAdapter {
           String authenticateHeader = getHeaderWithPrefix(response.headers().getAll(WWW_AUTHENTICATE), "Digest");
           if (authenticateHeader != null) {
             digestHeader = realm.computeAuthorizationHeader(tx.request.getMethod(), tx.request.getUri(), authenticateHeader);
+            ReferenceCountUtil.release(msg);
             return;
           }
         }
@@ -65,6 +67,7 @@ class DigestAuthHandler extends ChannelInboundHandlerAdapter {
       ctx.fireChannelRead(msg);
 
     } else if (msg instanceof LastHttpContent) {
+        ReferenceCountUtil.release(msg);
         // send new request
         // FIXME make sure connection can be reused, otherwise use a new one
         // FIXME check what happens if buildRequest throws
@@ -74,8 +77,10 @@ class DigestAuthHandler extends ChannelInboundHandlerAdapter {
         // FIXME write can throw Exception!!!
         request.write(ctx);
         ctx.pipeline().remove(this);
+    } else {
+      // initial response chunks are just ignored
+      ReferenceCountUtil.release(msg);
     }
-    // initial response chunks are just ignored
   }
 
   private static String getHeaderWithPrefix(List<String> authenticateHeaders, String prefix) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package io.gatling.jdbc.feeder
 
 import java.sql.DriverManager
 import java.sql.ResultSet.{ CONCUR_READ_ONLY, TYPE_FORWARD_ONLY }
+
 import scala.annotation.tailrec
 import scala.collection.breakOut
 

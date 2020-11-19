@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,20 +22,27 @@ import javax.jms.{ Destination, MessageProducer }
 
 import scala.collection.JavaConverters._
 
+private[client] final case class CachedProducerKey(destination: Destination, deliveryMode: Int)
+
 class JmsProducerPool(sessionPool: JmsSessionPool) {
 
   private val registeredProducers = Collections.newSetFromMap(new ConcurrentHashMap[MessageProducer, java.lang.Boolean])
-  private case class CachedProducerKey(destination: Destination, deliveryMode: Int)
   private val producers = new ConcurrentHashMap[CachedProducerKey, ThreadLocal[JmsProducer]]
 
   def producer(destination: Destination, deliveryMode: Int): JmsProducer =
-    producers.computeIfAbsent(CachedProducerKey(destination, deliveryMode), key => ThreadLocal.withInitial[JmsProducer](() => {
-      val jmsSession = sessionPool.jmsSession()
-      val producer = jmsSession.createProducer(key.destination)
-      producer.setDeliveryMode(key.deliveryMode)
-      registeredProducers.add(producer)
-      new JmsProducer(jmsSession, producer)
-    })).get()
+    producers
+      .computeIfAbsent(
+        CachedProducerKey(destination, deliveryMode),
+        key =>
+          ThreadLocal.withInitial[JmsProducer](() => {
+            val jmsSession = sessionPool.jmsSession()
+            val producer = jmsSession.createProducer(key.destination)
+            producer.setDeliveryMode(key.deliveryMode)
+            registeredProducers.add(producer)
+            JmsProducer(jmsSession, producer)
+          })
+      )
+      .get()
 
   def close(): Unit = registeredProducers.asScala.foreach(_.close())
 }

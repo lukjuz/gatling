@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,6 @@
 
 package io.gatling.commons.stats
 
-case class ErrorStats(message: String, count: Int, totalCount: Int) {
-  def percentage = count * 100.0 / totalCount
+final class ErrorStats(val message: String, val count: Int, val totalCount: Int) {
+  def percentage: Double = count * 100.0 / totalCount
 }

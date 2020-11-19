@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,24 +16,24 @@
 
 package io.gatling.recorder.scenario
 
-import io.gatling.http.HeaderNames
+import io.gatling.http.MissingNettyHttpHeaderNames
 
-import io.netty.handler.codec.http.{ DefaultHttpHeaders, HttpHeaders }
+import io.netty.handler.codec.http.{ DefaultHttpHeaders, HttpHeaderNames, HttpHeaders }
 
 private[scenario] object ProtocolDefinition {
 
   // use HttpHeaders because keys are case insensitive
   val BaseHeadersAndProtocolMethods: HttpHeaders = new DefaultHttpHeaders(false)
-    .add(HeaderNames.Accept, "acceptHeader")
-    .add(HeaderNames.AcceptCharset, "acceptCharsetHeader")
-    .add(HeaderNames.AcceptEncoding, "acceptEncodingHeader")
-    .add(HeaderNames.AcceptLanguage, "acceptLanguageHeader")
-    .add(HeaderNames.Authorization, "authorizationHeader")
-    .add(HeaderNames.Connection, "connectionHeader")
-    .add(HeaderNames.ContentType, "contentTypeHeader")
-    .add(HeaderNames.DNT, "doNotTrackHeader")
-    .add(HeaderNames.UserAgent, "userAgentHeader")
-    .add(HeaderNames.UpgradeInsecureRequests, "upgradeInsecureRequestsHeader")
+    .add(HttpHeaderNames.ACCEPT, "acceptHeader")
+    .add(HttpHeaderNames.ACCEPT_CHARSET, "acceptCharsetHeader")
+    .add(HttpHeaderNames.ACCEPT_ENCODING, "acceptEncodingHeader")
+    .add(HttpHeaderNames.ACCEPT_LANGUAGE, "acceptLanguageHeader")
+    .add(HttpHeaderNames.AUTHORIZATION, "authorizationHeader")
+    .add(HttpHeaderNames.CONNECTION, "connectionHeader")
+    .add(HttpHeaderNames.CONTENT_TYPE, "contentTypeHeader")
+    .add(MissingNettyHttpHeaderNames.DNT, "doNotTrackHeader")
+    .add(HttpHeaderNames.USER_AGENT, "userAgentHeader")
+    .add(MissingNettyHttpHeaderNames.UpgradeInsecureRequests, "upgradeInsecureRequestsHeader")
 }
 
-private[scenario] case class ProtocolDefinition(baseUrl: String, headers: HttpHeaders)
+private[scenario] final case class ProtocolDefinition(baseUrl: String, headers: HttpHeaders)

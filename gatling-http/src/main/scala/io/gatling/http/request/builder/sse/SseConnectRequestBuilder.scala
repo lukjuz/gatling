@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,37 +16,34 @@
 
 package io.gatling.http.request.builder.sse
 
+import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session._
-import io.gatling.http.{ HeaderNames, HeaderValues }
+import io.gatling.http.MissingNettyHttpHeaderValues
 import io.gatling.http.action.sse.SseConnectBuilder
 import io.gatling.http.client.Request
 import io.gatling.http.protocol.HttpComponents
 import io.gatling.http.request.builder.{ CommonAttributes, RequestBuilder }
 
-import io.netty.handler.codec.http.HttpMethod
+import io.netty.handler.codec.http.{ HttpHeaderNames, HttpHeaderValues, HttpMethod }
 
 object SseConnectRequestBuilder {
 
-  val SseHeaderValueExpression = HeaderValues.TextEventStream.expressionSuccess
-  val CacheControlNoCacheValueExpression = HeaderValues.NoCache.expressionSuccess
+  private val SseHeaderValueExpression = MissingNettyHttpHeaderValues.TextEventStream.toString.expressionSuccess
+  private val CacheControlNoCacheValueExpression = HttpHeaderValues.NO_CACHE.toString.expressionSuccess
 
-  def apply(requestName: Expression[String], url: Expression[String], sseName: String) =
+  def apply(requestName: Expression[String], url: Expression[String], sseName: String): SseConnectRequestBuilder =
     new SseConnectRequestBuilder(CommonAttributes(requestName, HttpMethod.GET, Left(url)), sseName)
-      .header(HeaderNames.Accept, SseHeaderValueExpression)
-      .header(HeaderNames.CacheControl, CacheControlNoCacheValueExpression)
+      .header(HttpHeaderNames.ACCEPT, SseHeaderValueExpression)
+      .header(HttpHeaderNames.CACHE_CONTROL, CacheControlNoCacheValueExpression)
 
   implicit def toActionBuilder(requestBuilder: SseConnectRequestBuilder): SseConnectBuilder =
-    new SseConnectBuilder(requestBuilder.commonAttributes.requestName, requestBuilder.sseName, requestBuilder, Nil)
+    SseConnectBuilder(requestBuilder.commonAttributes.requestName, requestBuilder, Nil)
 }
 
-case class SseConnectRequestBuilder(
-    commonAttributes: CommonAttributes,
-    sseName:          String
-)
-  extends RequestBuilder[SseConnectRequestBuilder] {
+final class SseConnectRequestBuilder(val commonAttributes: CommonAttributes, val sseName: String) extends RequestBuilder[SseConnectRequestBuilder] {
 
   override private[http] def newInstance(commonAttributes: CommonAttributes) = new SseConnectRequestBuilder(commonAttributes, sseName)
 
-  def build(httpComponents: HttpComponents): Expression[Request] =
-    new SseRequestExpressionBuilder(commonAttributes, httpComponents.httpCaches, httpComponents.httpProtocol, httpComponents.coreComponents.configuration).build
+  def build(httpComponents: HttpComponents, configuration: GatlingConfiguration): Expression[Request] =
+    new SseRequestExpressionBuilder(commonAttributes, httpComponents.httpCaches, httpComponents.httpProtocol, configuration).build
 }

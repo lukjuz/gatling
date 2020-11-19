@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,30 +16,45 @@
 
 package io.gatling.http.cache
 
+import javax.net.ssl.KeyManagerFactory
+
+import scala.util.control.NonFatal
+
+import io.gatling.commons.util.Throwables._
 import io.gatling.core.session.{ Session, SessionPrivateAttributes }
 import io.gatling.http.engine.HttpEngine
 import io.gatling.http.protocol.HttpProtocol
-import io.gatling.http.util.{ HttpTypeCaster, SslContexts }
+import io.gatling.http.util.SslContexts
 
-object SslContextSupport {
+import com.typesafe.scalalogging.StrictLogging
 
-  val HttpSslContextsAttributeName: String = SessionPrivateAttributes.PrivateAttributePrefix + "http.ssl.sslContexts"
-}
+private[http] object SslContextSupport extends StrictLogging {
 
-trait SslContextSupport {
+  private val HttpSslContextsAttributeName: String = SessionPrivateAttributes.PrivateAttributePrefix + "http.ssl.sslContexts"
 
-  import SslContextSupport._
+  private def resolvePerUserKeyManagerFactory(session: Session, perUserKeyManagerFactory: Option[Long => KeyManagerFactory]): Option[KeyManagerFactory] =
+    perUserKeyManagerFactory match {
+      case Some(kmf) =>
+        try {
+          Some(kmf(session.userId))
+        } catch {
+          case NonFatal(e) =>
+            logger.error(s"Can't build perUserKeyManagerFactory: ${e.rootMessage}", e)
+            None
+        }
+      case _ => None
+    }
 
   def setSslContexts(httpProtocol: HttpProtocol, httpEngine: HttpEngine): Session => Session =
     if (httpProtocol.enginePart.shareConnections) {
-      identity
-    } else {
-      _.set(HttpSslContextsAttributeName, httpEngine.newSslContexts(httpProtocol.enginePart.enableHttp2))
+      Session.Identity
+    } else { session =>
+      {
+        val kmf = resolvePerUserKeyManagerFactory(session, httpProtocol.enginePart.perUserKeyManagerFactory)
+        session.set(HttpSslContextsAttributeName, httpEngine.newSslContexts(httpProtocol.enginePart.enableHttp2, kmf))
+      }
     }
 
-  def sslContexts(session: Session): Option[SslContexts] = {
-    // import optimized TypeCaster
-    import HttpTypeCaster._
-    session(HttpSslContextsAttributeName).asOption[SslContexts]
-  }
+  def sslContexts(session: Session): Option[SslContexts] =
+    session.attributes.get(HttpSslContextsAttributeName).map(_.asInstanceOf[SslContexts])
 }

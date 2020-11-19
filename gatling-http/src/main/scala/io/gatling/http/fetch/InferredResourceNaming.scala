@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@
 
 package io.gatling.http.fetch
 
-import io.gatling.http.client.ahc.uri.Uri
+import io.gatling.http.client.uri.Uri
 
-object InferredResourceNaming {
+private[http] object InferredResourceNaming {
 
   val AbsoluteUrlInferredResourceNaming: Uri => String = _.toString
 
@@ -33,10 +33,11 @@ object InferredResourceNaming {
         case -1 => path
         case i  => path.substring(i + 1, path.length)
       }
-    case path => path.lastIndexOf('/') match {
-      case -1 => path
-      case i  => path.substring(i + 1)
-    }
+    case path =>
+      path.lastIndexOf('/') match {
+        case -1 => path
+        case i  => path.substring(i + 1)
+      }
   }
 
   val UrlTailInferredResourceNaming: Uri => String = uri => {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,29 +16,31 @@
 
 package io.gatling.http.protocol
 
-import io.gatling.core.CoreComponents
 import io.gatling.core.protocol.ProtocolComponents
 import io.gatling.core.session.Session
-import io.gatling.http.cache.HttpCaches
+import io.gatling.http.cache._
 import io.gatling.http.engine.HttpEngine
 import io.gatling.http.engine.tx.HttpTxExecutor
 
-case class HttpComponents(
-    coreComponents: CoreComponents,
-    httpProtocol:   HttpProtocol,
-    httpEngine:     HttpEngine,
-    httpCaches:     HttpCaches,
-    httpTxExecutor: HttpTxExecutor
+final class HttpComponents(
+    val httpProtocol: HttpProtocol,
+    val httpEngine: HttpEngine,
+    val httpCaches: HttpCaches,
+    val httpTxExecutor: HttpTxExecutor
 ) extends ProtocolComponents {
 
   override lazy val onStart: Session => Session =
-    (httpCaches.setSslContexts(httpProtocol, httpEngine)
-      andThen httpCaches.setNameResolver(httpProtocol, httpEngine)
-      andThen httpCaches.setLocalAddress(httpProtocol)
-      andThen httpCaches.setBaseUrl(httpProtocol)
-      andThen httpCaches.setWsBaseUrl(httpProtocol)
-      andThen httpCaches.setHttp2PriorKnowledge(httpProtocol))
+    (SslContextSupport.setSslContexts(httpProtocol, httpEngine)
+      andThen httpCaches.setNameResolver(httpProtocol.dnsPart, httpEngine)
+      andThen LocalAddressSupport.setLocalAddresses(httpProtocol)
+      andThen BaseUrlSupport.setHttpBaseUrl(httpProtocol)
+      andThen BaseUrlSupport.setWsBaseUrl(httpProtocol)
+      andThen Http2PriorKnowledgeSupport.setHttp2PriorKnowledge(httpProtocol))
 
   override lazy val onExit: Session => Unit =
-    session => httpEngine.flushClientIdChannels(session.userId)
+    session => {
+      httpCaches.nameResolver(session).foreach(_.close())
+      SslContextSupport.sslContexts(session).foreach(_.close())
+      httpEngine.flushClientIdChannels(session.userId, session.eventLoop)
+    }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ public class InputStreamRequestBodyBuilder extends RequestBodyBuilder<InputStrea
   }
 
   @Override
-  public RequestBody<InputStream> build(String contentType, Charset charset) {
-    return new InputStreamRequestBody(content, contentType, charset);
+  public RequestBody<InputStream> build(String contentType, Charset charset, Charset defaultCharset) {
+    return new InputStreamRequestBody(content, contentType);
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ package io.gatling.recorder.http.ssl
 import io.gatling.commons.util.ClassSimpleNameToString
 import io.gatling.recorder.util.Labelled
 
-private[recorder] sealed abstract class KeyStoreType(val label: String) extends Labelled with ClassSimpleNameToString
+private[recorder] sealed abstract class KeyStoreType(val label: String) extends Labelled with ClassSimpleNameToString with Product with Serializable
 
 private[recorder] object KeyStoreType {
 

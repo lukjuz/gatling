@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ class TryMaxBuilder(times: Expression[Int], counterName: String, loopNext: Chain
     import ctx._
     val tryMaxAction = new TryMax(times, counterName, coreComponents.statsEngine, coreComponents.clock, next)
     val loopNextAction = loopNext.build(ctx, tryMaxAction)
-    tryMaxAction.initialize(loopNextAction, ctx.coreComponents.actorSystem)
+    tryMaxAction.initialize(loopNextAction)
     tryMaxAction
   }
 }

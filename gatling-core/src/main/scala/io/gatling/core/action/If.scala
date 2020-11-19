@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,13 @@
 package io.gatling.core.action
 
 import io.gatling.commons.util.Clock
-import io.gatling.core.stats.StatsEngine
 import io.gatling.core.session.{ Expression, Session }
+import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
 
-class If(condition: Expression[Boolean], thenNext: Action, elseNext: Action, val statsEngine: StatsEngine, val clock: Clock, val next: Action) extends ExitableAction with NameGen {
+class If(condition: Expression[Boolean], thenNext: Action, elseNext: Action, val statsEngine: StatsEngine, val clock: Clock, val next: Action)
+    extends ExitableAction
+    with NameGen {
 
   override val name: String = genName("if")
 

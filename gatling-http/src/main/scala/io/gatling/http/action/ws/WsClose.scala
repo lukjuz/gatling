@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,23 +22,25 @@ import io.gatling.core.action.{ Action, ExitableAction, RequestAction }
 import io.gatling.core.session.{ Session, _ }
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
-import io.gatling.http.action.ws.fsm.ClientCloseRequest
 
 class WsClose(
     override val requestName: Expression[String],
-    wsName:                   String,
+    wsName: String,
     override val statsEngine: StatsEngine,
-    override val clock:       Clock,
-    val next:                 Action
-) extends RequestAction with WsAction with ExitableAction with NameGen {
+    override val clock: Clock,
+    val next: Action
+) extends RequestAction
+    with WsAction
+    with ExitableAction
+    with NameGen {
 
   override val name: String = genName("wsClose")
 
   override def sendRequest(requestName: String, session: Session): Validation[Unit] =
     for {
-      wsActor <- fetchActor(wsName, session)
+      fsm <- fetchFsm(wsName, session)
     } yield {
       logger.info(s"Closing websocket '$wsName': Scenario '${session.scenario}', UserId #${session.userId}")
-      wsActor ! ClientCloseRequest(requestName, session, next)
+      fsm.onClientCloseRequest(requestName, session, next)
     }
 }

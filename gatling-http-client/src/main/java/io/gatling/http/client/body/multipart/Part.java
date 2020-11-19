@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,9 +34,11 @@ public abstract class Part<T> {
 
   private final String contentId;
 
-  private String dispositionType;
+  private final String dispositionType;
 
-  private List<Param> customHeaders;
+  private final String contentType;
+
+  private final List<Param> customHeaders;
 
   Part(String name,
                  T content,
@@ -44,6 +46,7 @@ public abstract class Part<T> {
                  String transferEncoding,
                  String contentId,
                  String dispositionType,
+                 String contentType,
                  List<Param> customHeaders) {
     this.name = name;
     this.content = content;
@@ -51,6 +54,7 @@ public abstract class Part<T> {
     this.transferEncoding = transferEncoding;
     this.contentId = contentId;
     this.dispositionType = dispositionType;
+    this.contentType = contentType;
     this.customHeaders = customHeaders;
   }
 
@@ -78,11 +82,36 @@ public abstract class Part<T> {
     return dispositionType;
   }
 
+  public String getContentType() {
+    return contentType;
+  }
+
   public List<Param> getCustomHeaders() {
     return customHeaders;
   }
 
-  public abstract String getContentType();
-
   public abstract PartImpl toImpl(byte[] boundary);
+
+  @Override
+  public String toString() {
+    final StringBuilder sb = new StringBuilder("Part{");
+    sb.append("name='").append(name).append('\'');
+    sb.append(", charset=").append(charset);
+    sb.append(", transferEncoding='").append(transferEncoding).append('\'');
+    sb.append(", contentId='").append(contentId).append('\'');
+    sb.append(", dispositionType='").append(dispositionType).append('\'');
+    sb.append(", contentType='").append(contentType).append('\'');
+    if (customHeaders != null) {
+      sb.append(", customHeaders=");
+      customHeaders.forEach(customHeader ->
+        sb.append(customHeader.getName()).append(": ").append(customHeader.getValue()).append(", ")
+      );
+      if (!customHeaders.isEmpty()) {
+        sb.setLength(sb.length() - 2);
+      }
+    }
+    sb.append(", content=").append(content);
+    sb.append('}');
+    return sb.toString();
+  }
 }

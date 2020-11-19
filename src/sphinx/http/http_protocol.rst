@@ -140,24 +140,20 @@ If you configure a remote in prior knowledge and set it to true, but that the AL
 DNS Name Resolution
 -------------------
 
-By default, Gatling uses Java's DNS name resolution, meaning that it uses a cache shared amongst all virtual users.
-More over, Java's cache doesn't honor DNS records TTL.
+By default, Gatling uses Java's DNS name resolution. This cache has a TTL of 30s by default on OpenJDK and doesn't honor the DNS records' own TTL.
 You can control the TTL with ``-Dsun.net.inetaddr.ttl=N`` where `N` is a number of seconds.
+Please note the ``sun.net.inetaddr.ttl`` System property is deprecated and one should use the ``networkaddress.cache.ttl`` Security property instead, see `doc <https://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html>`_.
 
-If you're using the JDK resolution and have multiple IP (multiple DNS records) for a given hostname, Gatling will automatically shuffle them
+If you're using the Java DNS name resolution and have multiple IP (multiple DNS records) for a given hostname, Gatling will automatically shuffle them
 to emulate DNS round-robin.
 
 You can use a Netty based DNS resolution instead, with ``.asyncNameResolution()``.
 This method can take a sequence of DNS server adresses, eg ``.asyncNameResolution("8.8.8.8")``.
-If you don't pass DNS servers, Gatling will use the one from your OS configuration on Linux and MacOS only,
+If you don't pass DNS servers, Gatling will use the ones from your OS configuration on Linux and MacOS only,
 and to Google's ones on Windows(don't run with heavy load as Google will block you).
 
 You can also make it so that every virtual user performs its own DNS name resolution with ``.perUserNameResolution``.
 This parameter is only effective when using ``asyncNameResolution``.
-
-Note this feature is experimental.
-This feature is pretty useful if you're dealing with an elastic cluster where new IPs are added to the DNS server under load,
-for example with AWS ALB and Route53.
 
 .. _http-protocol-hostname-aliasing:
 
@@ -166,8 +162,9 @@ Hostname Aliasing
 
 You can of course define hostname aliases at the OS level in the ``/etc/hosts`` file.
 
-But you can also pass a ``Map[String, String]`` to ``.hostNameAliases`` where values are valid IP addresses.
-Note that, just like with ``/etc/hosts`` you can only define one IP per alias.
+But you can use ``.hostNameAliases`` to pass aliases programmatically:
+
+.. includecode:: code/HttpProtocolSample.scala#hostNameAliases
 
 .. _http-protocol-virtual-host:
 
@@ -187,8 +184,22 @@ You can bind the sockets from specific local addresses instead of the default on
 
   localAddress(localAddress: String)
   localAddresses(localAddress1: String, localAddress2: String)
+  useAllLocalAddresses // automatically discover all bindable local addresses
 
 When setting multiple addresses, each virtual user is assigned to one single local address once and for all.
+
+.. _http-protocol-kmf:
+
+KeyManagerFactory
+-----------------
+
+By default, Gatling uses the KeyManagerFactory configuration defined in `gatling.conf`, or if undefined, falls back to the JVM's default one.
+
+Then, it's possible to have per virtual user KeyManagerFactories, typically if you want them to use different sets of keys::
+
+    perUserKeyManagerFactory(f: Long => KeyManagerFactory)
+
+This function's input is the virtual user's id (if you need it to generate some file name) and returns a `javax.net.ssl.KeyManagerFactory <https://docs.oracle.com/javase/8/docs/api/javax/net/ssl/KeyManagerFactory.html>`_.
 
 Request building parameters
 ===========================
@@ -237,7 +248,7 @@ Silencing
 
 Request stats are logged and then used to produce reports.
 Sometimes, some requests may be important for you for generating load, but you don't actually want to report them.
-Typically, reporting all static resources might generate a lot of noise, and yet failed static resources are usually non blocking from a user experience perspective.
+Typically, reporting all static resources might generate a lot of noise, and yet failed static resources might not be blocking from a user experience perspective.
 
 Gatling provides several means to turn requests silent.
 Silent requests won't be reported and won't influence error triggers such as :ref:`tryMax <scenario-trymax>` and :ref:`exitHereIfFailed <scenario-exithereiffailed>`.
@@ -323,7 +334,7 @@ Response handling parameters
 Follow redirects
 ----------------
 
-By default Gatling automatically follow redirects in case of 301, 302, 303 or 307 response status code, you can disable this behavior with ``.disableFollowRedirect``.
+By default Gatling automatically follow redirects in case of 301, 302, 303, 307 or 308 response status code, you can disable this behavior with ``.disableFollowRedirect``.
 
 To avoid infinite redirection loops, Gatling sets a limit on the number of redirects.
 The default value is 20. You can tune this limit with: ``.maxRedirects(max: Int)``
@@ -346,7 +357,7 @@ Checks
 ------
 
 You can define checks at the http protocol definition level with: ``check(checks: HttpCheck*)``.
-They will be apply on all the requests, however you can disable them for given request thanks to the ``ignoreDefaultChecks`` method.
+They will be apply on all the requests, however you can disable them for given request thanks to the ``ignoreProtocolChecks`` method.
 
 .. note:: For more details see the dedicated section :ref:`here <http-check>`.
 
@@ -382,7 +393,8 @@ You can also specify black/white list or custom filters to have a more fine grai
 
 * ``inferHtmlResources(white: WhiteList)``: fetch all resources matching a pattern in the white list.
 * ``inferHtmlResources(white: WhiteList, black: BlackList)``: fetch all resources matching a pattern in the white list excepting those in the black list.
-* ``inferHtmlResources(black: BlackList, white: WhiteList = WhiteList(Nil))``: fetch all resources excepting those matching a pattern in the black list and not in the white list.
+* ``inferHtmlResources(black: BlackList)``: fetch all resources excepting those matching a pattern in the black list.
+* ``inferHtmlResources(black: BlackList, white: WhiteList)``: fetch all resources excepting those matching a pattern in the black list and not in the white list.
 * ``inferHtmlResources(filters: Option[Filters])``
 
 Finally, you can specify the strategy for naming those requests in the reports:

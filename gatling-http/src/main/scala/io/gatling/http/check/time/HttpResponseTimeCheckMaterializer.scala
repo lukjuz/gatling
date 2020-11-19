@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,16 +17,17 @@
 package io.gatling.http.check.time
 
 import io.gatling.commons.validation._
-import io.gatling.core.check._
+import io.gatling.core.check.{ CheckMaterializer, Preparer }
+import io.gatling.core.check.time.ResponseTimeCheckType
 import io.gatling.core.stats.message.ResponseTimings
-import io.gatling.core.time.ResponseTimeCheckType
-import io.gatling.http.check.HttpCheck
-import io.gatling.http.check.HttpCheckBuilders._
+import io.gatling.http.check.{ HttpCheck, HttpCheckMaterializer }
+import io.gatling.http.check.HttpCheckScope.Time
 import io.gatling.http.response.Response
 
-object HttpResponseTimeCheckMaterializer extends CheckMaterializer[ResponseTimeCheckType, HttpCheck, Response, ResponseTimings] {
+object HttpResponseTimeCheckMaterializer {
 
-  override val specializer: Specializer[HttpCheck, Response] = TimeSpecializer
-
-  override val preparer: Preparer[Response, ResponseTimings] = response => ResponseTimings(response.startTimestamp, response.endTimestamp).success
+  val Instance: CheckMaterializer[ResponseTimeCheckType, HttpCheck, Response, ResponseTimings] = {
+    val preparer: Preparer[Response, ResponseTimings] = response => new ResponseTimings(response.startTimestamp, response.endTimestamp).success
+    new HttpCheckMaterializer[ResponseTimeCheckType, ResponseTimings](Time, preparer)
+  }
 }

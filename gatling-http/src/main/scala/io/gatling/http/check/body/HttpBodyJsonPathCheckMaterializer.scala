@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,48 +16,20 @@
 
 package io.gatling.http.check.body
 
-import io.gatling.core.check.{ CheckMaterializer, Preparer, Specializer }
-import io.gatling.core.check.extractor.jsonpath.JsonPathCheckType
+import io.gatling.core.check.{ CheckMaterializer, Preparer }
+import io.gatling.core.check.jsonpath.JsonPathCheckType
 import io.gatling.core.json.JsonParsers
-import io.gatling.http.check.{ HttpCheck, HttpCheckBuilders }
-import io.gatling.http.response._
+import io.gatling.http.check.{ HttpCheck, HttpCheckMaterializer }
+import io.gatling.http.check.HttpCheckScope.Body
+import io.gatling.http.response.Response
+
+import com.fasterxml.jackson.databind.JsonNode
 
 object HttpBodyJsonPathCheckMaterializer {
 
-  private val CharsParsingThreshold = 200 * 1000
+  def instance(jsonParsers: JsonParsers): CheckMaterializer[JsonPathCheckType, HttpCheck, Response, JsonNode] = {
+    val preparer: Preparer[Response, JsonNode] = response => jsonParsers.safeParse(response.body.stream, response.body.charset)
 
-  private[body] val BoonResponseBodyUsageStrategy = new ResponseBodyUsageStrategy {
-    override def bodyUsage(contentLength: Int): ResponseBodyUsage =
-      if (contentLength <= CharsParsingThreshold) {
-        CharArrayResponseBodyUsage
-      } else {
-        InputStreamResponseBodyUsage
-      }
+    new HttpCheckMaterializer[JsonPathCheckType, JsonNode](Body, preparer)
   }
-
-  private[body] val JacksonResponseBodyUsageStrategy = new ResponseBodyUsageStrategy {
-    override def bodyUsage(contentLength: Int): ResponseBodyUsage =
-      InputStreamResponseBodyUsage
-  }
-
-  private def jsonPathPreparer(jsonParsers: JsonParsers): Preparer[Response, Any] =
-    response =>
-      if (response.bodyLength > CharsParsingThreshold || jsonParsers.preferJackson)
-        jsonParsers.safeParseJackson(response.body.stream, response.charset)
-      else
-        jsonParsers.safeParse(response.body.string)
-}
-
-class HttpBodyJsonPathCheckMaterializer(jsonParsers: JsonParsers) extends CheckMaterializer[JsonPathCheckType, HttpCheck, Response, Any] {
-
-  import HttpBodyJsonPathCheckMaterializer._
-
-  override val specializer: Specializer[HttpCheck, Response] = {
-    val responseBodyUsageStrategy =
-      if (jsonParsers.preferJackson) JacksonResponseBodyUsageStrategy
-      else BoonResponseBodyUsageStrategy
-    HttpCheckBuilders.bodySpecializer(responseBodyUsageStrategy)
-  }
-
-  override val preparer: Preparer[Response, Any] = jsonPathPreparer(jsonParsers)
 }

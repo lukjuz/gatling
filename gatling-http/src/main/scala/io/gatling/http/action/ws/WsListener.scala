@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,26 +17,21 @@
 package io.gatling.http.action.ws
 
 import io.gatling.commons.util.Clock
-import io.gatling.core.stats.StatsEngine
-import io.gatling.http.action.ws.fsm._
+import io.gatling.http.action.ws.fsm.WsFsm
 import io.gatling.http.client.WebSocketListener
 import io.gatling.http.util.HttpHelper
-import io.gatling.netty.util.ahc.{ ByteBufUtils, Utf8ByteBufCharsetDecoder }
+import io.gatling.netty.util.{ ByteBufUtils, Utf8ByteBufCharsetDecoder }
 
-import akka.actor.ActorRef
 import com.typesafe.scalalogging.LazyLogging
+import io.netty.handler.codec.http.{ HttpHeaders, HttpResponseStatus }
 import io.netty.handler.codec.http.cookie.Cookie
 import io.netty.handler.codec.http.websocketx.{ BinaryWebSocketFrame, CloseWebSocketFrame, PongWebSocketFrame, TextWebSocketFrame }
-import io.netty.handler.codec.http.{ HttpHeaders, HttpResponseStatus }
 
-class WsListener(wsActor: ActorRef, statsEngine: StatsEngine, clock: Clock) extends WebSocketListener with LazyLogging {
+class WsListener(fsm: WsFsm, clock: Clock) extends WebSocketListener with LazyLogging {
 
   private var cookies: List[Cookie] = Nil
 
   //[fl]
-  //
-  //
-  //
   //
   //
   //
@@ -69,20 +64,20 @@ class WsListener(wsActor: ActorRef, statsEngine: StatsEngine, clock: Clock) exte
   }
 
   override def onWebSocketOpen(): Unit =
-    wsActor ! WebSocketConnected(this, cookies, clock.nowMillis)
+    fsm.onWebSocketConnected(this, cookies, clock.nowMillis)
 
   override def onCloseFrame(frame: CloseWebSocketFrame): Unit =
-    wsActor ! WebSocketClosed(frame.statusCode, frame.reasonText, clock.nowMillis)
+    fsm.onWebSocketClosed(frame.statusCode, frame.reasonText, clock.nowMillis)
 
   override def onTextFrame(frame: TextWebSocketFrame): Unit =
-    wsActor ! TextFrameReceived(Utf8ByteBufCharsetDecoder.decodeUtf8(frame.content()), clock.nowMillis)
+    fsm.onTextFrameReceived(Utf8ByteBufCharsetDecoder.decodeUtf8(frame.content()), clock.nowMillis)
 
   override def onBinaryFrame(frame: BinaryWebSocketFrame): Unit =
-    wsActor ! BinaryFrameReceived(ByteBufUtils.byteBuf2Bytes(frame.content()), clock.nowMillis)
+    fsm.onBinaryFrameReceived(ByteBufUtils.byteBuf2Bytes(frame.content()), clock.nowMillis)
 
   override def onPongFrame(frame: PongWebSocketFrame): Unit =
     logger.debug("Received PONG frame")
 
   override def onThrowable(t: Throwable): Unit =
-    wsActor ! WebSocketCrashed(t, clock.nowMillis)
+    fsm.onWebSocketCrashed(t, clock.nowMillis)
 }

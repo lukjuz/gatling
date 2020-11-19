@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,9 @@ object MessageEvent {
     case End.name   => End
     case _          => throw new IllegalArgumentException(s"Illegal MessageEvent value $name")
   }
+
+  case object Start extends MessageEvent("START")
+  case object End extends MessageEvent("END")
 }
 
 sealed abstract class MessageEvent(val name: String)
-case object Start extends MessageEvent("START")
-case object End extends MessageEvent("END")

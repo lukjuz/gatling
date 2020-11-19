@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,18 +32,18 @@ public class FilePart extends FileLikePart<File> {
                   String transferEncoding,
                   String contentId,
                   String dispositionType,
+                  String contentType,
                   List<Param> customHeaders,
-                  String fileName,
-                  String contentType) {
+                  String fileName) {
     super(name,
             content,
             charset,
             transferEncoding,
             contentId,
             dispositionType,
+            contentType,
             customHeaders,
-            fileName,
-            contentType
+            fileName
     );
     if (!content.exists()) {
       throw new IllegalArgumentException("File part doesn't exist: " + content.getAbsolutePath());

@@ -308,6 +308,8 @@ If no switch is selected, the switch is bypassed.
 
 .. includecode:: code/ScenarioSample.scala#doSwitch
 
+.. warning:: When using any kind of switch component, make sure to use parentheses, not curly braces!
+
 .. _scenario-doswitchorelse:
 
 ``doSwitchOrElse``
@@ -387,6 +389,25 @@ If an error happens (a technical exception such as a timeout, or a failed check)
 .. includecode:: code/ScenarioSample.scala#exitBlockOnFail
 
 Quite similar to tryMax, but without looping on failure.
+
+.. _scenario-exithere:
+
+``exitHere``
+^^^^^^^^^^^^
+
+.. includecode:: code/ScenarioSample.scala#exitHere
+
+Make the user exit the scenario from this point.
+
+.. _scenario-exithereif:
+
+``exitHereIf``
+^^^^^^^^^^^^^^
+
+.. includecode:: code/ScenarioSample.scala#exitHereIf
+
+Make the user exit the scenario from this point if the condition holds.
+Condition parameter is an `Expression[Boolean]`.
 
 .. _scenario-exithereiffailed:
 

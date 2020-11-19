@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import io.gatling.core.protocol.ProtocolComponents
 import io.gatling.core.session.Session
 import io.gatling.jms.client.JmsConnectionPool
 
-case class JmsComponents(jmsProtocol: JmsProtocol, jmsConnectionPool: JmsConnectionPool) extends ProtocolComponents {
+final class JmsComponents(val jmsProtocol: JmsProtocol, val jmsConnectionPool: JmsConnectionPool) extends ProtocolComponents {
 
-  override def onStart: Session => Session = ProtocolComponents.NoopOnStart
+  override def onStart: Session => Session = Session.Identity
   override def onExit: Session => Unit = ProtocolComponents.NoopOnExit
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import io.netty.handler.proxy.Socks5ProxyHandler;
 
 import java.net.UnknownHostException;
 
-public class Socks5ProxyServer extends ProxyServer {
+public class Socks5ProxyServer extends SockProxyServer {
 
   private final BasicRealm realm;
 

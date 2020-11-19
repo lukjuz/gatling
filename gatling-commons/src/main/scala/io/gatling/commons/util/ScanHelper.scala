@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@
 
 package io.gatling.commons.util
 
-import java.io.{ FileInputStream, InputStream }
+import java.io.{ BufferedInputStream, FileInputStream, InputStream }
 import java.net.JarURLConnection
-import java.nio.file.{ Path, StandardCopyOption }
+import java.nio.file.{ Path, Paths, StandardCopyOption }
 import java.util.jar.{ JarEntry, JarFile }
 
 import scala.collection.JavaConverters._
@@ -28,7 +28,7 @@ import io.gatling.commons.util.PathHelper._
 
 object ScanHelper {
 
-  val Separator = Character.valueOf(28).toString
+  private val Separator = Character.valueOf(28).toString
 
   sealed trait Resource {
     def path: Path
@@ -37,28 +37,27 @@ object ScanHelper {
     def lastModified: Long
   }
 
-  case class FileResource(path: Path) extends Resource {
+  private final case class FileResource(path: Path) extends Resource {
 
     private val file = path.toFile
 
     override def copyTo(target: Path): Unit = {
-      target.getParent.mkdirs
+      target.getParent.mkdirs()
       path.copyTo(target, StandardCopyOption.COPY_ATTRIBUTES)
     }
 
-    override def inputStream(): InputStream = new FileInputStream(file)
+    override def inputStream(): InputStream = new BufferedInputStream(new FileInputStream(file))
 
     override def lastModified: Long = file.lastModified
   }
 
-  case class JarResource(jar: JarFile, jarEntry: JarEntry) extends Resource {
+  private final case class JarResource(jar: JarFile, jarEntry: JarEntry) extends Resource {
 
-    override def path = jarEntry.getName
+    override def path: Path = Paths.get(jarEntry.getName)
 
     override def copyTo(target: Path): Unit = {
-      target.getParent.mkdirs
-
-      withCloseable(inputStream()) { input =>
+      target.getParent.mkdirs()
+      withCloseable(jar.getInputStream(jarEntry)) { input =>
         withCloseable(target.outputStream) { output =>
           input.copyTo(output)
         }
@@ -80,16 +79,16 @@ object ScanHelper {
     getClass.getClassLoader.getResources(pkg.toString.replace("\\", "/")).asScala.flatMap { pkgURL =>
       pkgURL.getProtocol match {
         case "file" =>
-          val rootDir: Path = pkgURL
-          val files = if (deep) rootDir.deepFiles() else rootDir.files
+          val rootDir = Paths.get(pkgURL.toURI)
+          val files = if (deep) rootDir.deepFiles(_ => true) else rootDir.files
           files.map(f => FileResource(f.path))
 
         case "jar" =>
           val connection = pkgURL.openConnection.asInstanceOf[JarURLConnection]
-          val rootDir: Path = connection.getJarEntry.getName
-          val jar = new JarFile(connection.getJarFileURL.toFile)
+          val rootDir = Paths.get(connection.getJarEntry.getName)
+          val jar = new JarFile(Paths.get(connection.getJarFileURL.toURI).toFile)
           jar.entries.asScala.collect {
-            case jarEntry if isResourceInRootDir(jarEntry.getName, rootDir) =>
+            case jarEntry if isResourceInRootDir(Paths.get(jarEntry.getName), rootDir) =>
               JarResource(jar, jarEntry)
           }
 
@@ -103,7 +102,8 @@ object ScanHelper {
     def getPathStringAfterPackage(path: Path, pkg: Path): Path = {
       val pathString = path.segments.mkString(Separator)
       val pkgString = pkg.segments.mkString(Separator)
-      segments2path(pathString.split(pkgString).last.split(Separator))
+      val segments = pathString.split(pkgString).last.split(Separator)
+      Paths.get(segments.head, segments.tail: _*)
     }
 
     getPackageResources(pkg, deep = true).foreach { resource =>

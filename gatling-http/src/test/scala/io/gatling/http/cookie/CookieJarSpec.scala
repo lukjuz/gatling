@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 package io.gatling.http.cookie
 
 import io.gatling.BaseSpec
-import io.gatling.http.client.ahc.uri.Uri
+import io.gatling.http.client.uri.Uri
 
 import io.netty.handler.codec.http.cookie.ClientCookieDecoder.LAX.decode
 import io.netty.handler.codec.http.cookie.ClientCookieEncoder.LAX.encode
@@ -107,7 +107,9 @@ class CookieJarSpec extends BaseSpec {
     val uri = Uri.create("http://www.foo.com/bar")
     val cookieStore = CookieJar(uri, List(cookie), System.currentTimeMillis())
 
-    val storedCookies = cookieStore.add(uri, List(decode("ALPHA=EXPIRED; Domain=www.foo.com; Path=/bar; Expires=Sun, 06 Nov 1994 08:49:37 GMT")), System.currentTimeMillis()).get(uri)
+    val storedCookies = cookieStore
+      .add(uri, List(decode("ALPHA=EXPIRED; Domain=www.foo.com; Path=/bar; Expires=Sun, 06 Nov 1994 08:49:37 GMT")), System.currentTimeMillis())
+      .get(uri)
     storedCookies shouldBe empty
   }
 

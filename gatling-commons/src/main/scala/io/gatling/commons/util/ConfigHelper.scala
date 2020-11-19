@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,12 +28,12 @@ object ConfigHelper {
    *                  the fallback chain.
    * @return the configuration with its fallback configs configured
    */
-  def configChain(config: Config, fallbacks: Config*) =
+  def configChain(config: Config, fallbacks: Config*): Config =
     fallbacks.foldLeft(config)(_ withFallback _).resolve
 
   implicit class PimpedConfig(val config: Config) extends AnyVal {
 
-    def withChild[T](path: String)(f: Config => T) = f(config.getConfig(path))
+    def withChild[T](path: String)(f: Config => T): T = f(config.getConfig(path))
 
     def getStringOption(path: String): Option[String] =
       if (config.hasPath(path)) Some(config.getString(path)) else None

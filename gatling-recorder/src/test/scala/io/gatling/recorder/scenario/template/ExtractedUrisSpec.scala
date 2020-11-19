@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@ import io.netty.handler.codec.http.EmptyHttpHeaders
 
 class ExtractedUrisSpec extends BaseSpec {
 
-  def mockRequestElement(uri: String) = new RequestElement(uri, "get", EmptyHttpHeaders.INSTANCE, None, None, 200, Nil)
+  private def mockRequestElement(uri: String) = new RequestElement(uri, "get", EmptyHttpHeaders.INSTANCE, None, EmptyHttpHeaders.INSTANCE, None, 200, Nil, Nil)
 
-  def extractUris(uris: Seq[String]): ExtractedUris = {
+  private def extractUris(uris: Seq[String]): ExtractedUris = {
     val requestElements = uris.map(mockRequestElement)
     new ExtractedUris(requestElements)
   }

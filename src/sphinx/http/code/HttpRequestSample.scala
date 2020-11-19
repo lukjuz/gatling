@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+import scala.concurrent.duration._
 
 import io.gatling.core.Predef._
 import io.gatling.core.session.Expression
@@ -113,15 +115,24 @@ class HttpRequestSample {
 
     //#asJson
     http("foo").get("bar")
-      .header(HttpHeaderNames.ContentType, HttpHeaderValues.ApplicationJson)
-      .header(HttpHeaderNames.Accept, HttpHeaderValues.ApplicationJson)
     //#asJson
 
     //#asXml
     http("foo").get("bar")
-      .header(HttpHeaderNames.ContentType, HttpHeaderValues.ApplicationXml)
-      .header(HttpHeaderNames.Accept, HttpHeaderValues.ApplicationXml)
     //#asXml
+
+    //#ignoreProtocolHeaders
+    http("Getting issues")
+      .get("https://www.github.com/gatling/gatling/issues")
+      .ignoreProtocolHeaders
+    //#ignoreProtocolHeaders
+
+    //#requestTimeout
+    http("Getting issues")
+      .post("https://www.github.com/gatling/gatling/issues")
+      .body(RawFileBody("someLargeFile"))
+      .requestTimeout(3 minutes)
+    //#requestTimeout
 
     //#authentication
     http("My BASIC secured request").get("http://my.secured.uri").basicAuth("myUser", "myPassword")
@@ -151,11 +162,11 @@ class HttpRequestSample {
       .check(myCheck)
     //#check
 
-    //#ignoreDefaultChecks
+    //#ignoreProtocolChecks
     http("Getting issues")
       .get("https://www.github.com/gatling/gatling/issues")
-      .ignoreDefaultChecks
-    //#ignoreDefaultChecks
+      .ignoreProtocolChecks
+    //#ignoreProtocolChecks
 
     //#disableFollowRedirect
     http("Getting issues")
@@ -224,26 +235,31 @@ class HttpRequestSample {
       //#RawFileBody
       // myFileBody.json is a file that contains
       // { "myContent": "myHardCodedValue" }
-      .body(RawFileBody("myFileBody.json")).asJson
+      .body(RawFileBody("myFileBody.json"))
+      .asJson
       //#RawFileBody
       //#ElFileBody
       // myFileBody.json is a file that contains
       // { "myContent": "${myDynamicValue}" }
-      .body(ElFileBody("myFileBody.json")).asJson
+      .body(ElFileBody("myFileBody.json"))
+      .asJson
       //#ElFileBody
       //#StringBody
-      .body(StringBody("""{ "myContent": "myHardCodedValue" }""")).asJson
-
-      .body(StringBody("""{ "myContent": "${myDynamicValue}" }""")).asJson
-
-      .body(StringBody(session => """{ "myContent": """" + someGenerator(session) + """" }""")).asJson
+      .body(StringBody("""{ "myContent": "myHardCodedValue" }"""))
+      .asJson
+      .body(StringBody("""{ "myContent": "${myDynamicValue}" }"""))
+      .asJson
+      .body(StringBody(session => """{ "myContent": """" + someGenerator(session) + """" }"""))
+      .asJson
       //#StringBody
       //#PebbleBody
-      .body(PebbleStringBody("""{ "myContent": "{% if myCondition %}{{myDynamicValue}}{% endif %}" }""")).asJson
+      .body(PebbleStringBody("""{ "myContent": "{% if myCondition %}{{myDynamicValue}}{% endif %}" }"""))
+      .asJson
 
       // myFileBody.json is a file that contains
       // { "myContent": "{myDynamicValue}" }
-      .body(PebbleFileBody("myFileBody.json")).asJson
+      .body(PebbleFileBody("myFileBody.json"))
+      .asJson
     //#PebbleBody
 
     //#templates
@@ -259,22 +275,23 @@ class HttpRequestSample {
 
   {
     //#resp-processors-imports
-    import java.util.Base64
-    import io.gatling.http.response._
     import java.nio.charset.StandardCharsets.UTF_8
+    import java.util.Base64
+
+    import io.gatling.http.response._
     //#resp-processors-imports
 
-    http("foo").get("bar")
+    http("foo")
+      .get("bar")
       //#response-processors
 
       // ignore when response status code is not 200
-      .transformResponse {
-        (session, response) =>
-          if (response.status.code == 200) {
-            response.copy(body = new ByteArrayResponseBody(Base64.getDecoder.decode(response.body.string), UTF_8))
-          } else {
-            response
-          }
+      .transformResponse { (session, response) =>
+        if (response.status.code == 200) {
+          response.copy(body = new ByteArrayResponseBody(Base64.getDecoder.decode(response.body.string), UTF_8))
+        } else {
+          response
+        }
       }
     //#response-processors
   }

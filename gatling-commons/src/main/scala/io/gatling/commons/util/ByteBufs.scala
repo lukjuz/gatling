@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,14 +22,16 @@ import io.netty.buffer.ByteBuf
 
 object ByteBufs {
 
-  def byteBufToByteArray(buffer: ByteBuf): Array[Byte] =
-    if (buffer.isReadable) {
-      val byteArray = new Array[Byte](buffer.readableBytes)
+  def byteBufToByteArray(buffer: ByteBuf): Array[Byte] = {
+    val readableBytes = buffer.readableBytes
+    if (readableBytes > 0) {
+      val byteArray = new Array[Byte](readableBytes)
       buffer.getBytes(buffer.readerIndex, byteArray)
       byteArray
     } else {
       Array.emptyByteArray
     }
+  }
 
   def byteBufsToByteArray(bufs: Seq[ByteBuf]): Array[Byte] =
     if (bufs.nonEmpty) {
@@ -41,7 +43,7 @@ object ByteBufs {
 
       bufs.foreach { buf =>
         val bufSize = buf.readableBytes
-        buf.getBytes(0, bytes, offset, bufSize)
+        buf.getBytes(buf.readerIndex, bytes, offset, bufSize)
         offset += bufSize
       }
 

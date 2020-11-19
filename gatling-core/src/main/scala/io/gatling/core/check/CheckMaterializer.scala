@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,10 @@
 
 package io.gatling.core.check
 
-trait CheckMaterializer[T, C <: Check[R], R, P] {
+abstract class CheckMaterializer[T, C <: Check[R], R, P](specializer: Specializer[C, R]) {
 
   protected def preparer: Preparer[R, P]
 
-  protected def specializer: Specializer[C, R]
-
-  def materialize[X](builder: CheckBuilder[T, P, X]): C =
-    specializer(CheckBase(preparer, builder.extractor, builder.validator, builder.displayActualValue, builder.customName, builder.saveAs))
+  def materialize[X](builder: DefaultCheckBuilder[T, P, X]): C =
+    specializer(new CheckBase(preparer, builder.extractor, builder.validator, builder.displayActualValue, builder.customName, builder.saveAs))
 }

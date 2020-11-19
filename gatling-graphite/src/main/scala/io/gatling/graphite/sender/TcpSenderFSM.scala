@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
 
 package io.gatling.graphite.sender
 
-import io.gatling.commons.util.Retry
-
 import akka.actor.{ ActorRef, FSM }
 
 private[sender] trait TcpSenderFSM extends FSM[TcpSenderState, TcpSenderData]
@@ -29,5 +27,5 @@ private[sender] case object RetriesExhausted extends TcpSenderState
 
 private[sender] sealed trait TcpSenderData
 private[sender] case object NoData extends TcpSenderData
-private[sender] case class DisconnectedData(retry: Retry) extends TcpSenderData
-private[sender] case class ConnectedData(connection: ActorRef, retry: Retry) extends TcpSenderData
+private[sender] final case class DisconnectedData(retry: Retry) extends TcpSenderData
+private[sender] final case class ConnectedData(connection: ActorRef, retry: Retry) extends TcpSenderData

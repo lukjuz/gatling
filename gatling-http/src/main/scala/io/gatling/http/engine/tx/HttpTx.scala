@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,18 +18,16 @@ package io.gatling.http.engine.tx
 
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
-import io.gatling.http.client.ahc.uri.Uri
+import io.gatling.http.client.uri.Uri
 import io.gatling.http.fetch.ResourceAggregator
 import io.gatling.http.request.HttpRequest
-import io.gatling.http.response._
 
-case class HttpTx(
-    session:                Session,
-    request:                HttpRequest,
-    responseBuilderFactory: ResponseBuilderFactory,
-    next:                   Action,
-    resourceTx:             Option[ResourceTx]     = None,
-    redirectCount:          Int                    = 0
+final case class HttpTx(
+    session: Session,
+    request: HttpRequest,
+    next: Action,
+    resourceTx: Option[ResourceTx],
+    redirectCount: Int
 ) {
   lazy val silent: Boolean = request.isSilent(resourceTx.isEmpty)
 
@@ -42,4 +40,4 @@ case class HttpTx(
   def currentSession: Session = resourceTx.map(_.aggregator.currentSession).getOrElse(session)
 }
 
-case class ResourceTx(aggregator: ResourceAggregator, uri: Uri)
+final case class ResourceTx(aggregator: ResourceAggregator, uri: Uri)

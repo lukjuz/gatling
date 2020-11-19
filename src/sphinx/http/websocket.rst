@@ -78,6 +78,13 @@ For example:
 
 .. includecode:: code/WsSample.scala#sendText
 
+Note that:
+
+* ``ElFileBody``, ``PebbleStringBody`` and ``PebbleFileBody`` implement ``Expression[String]`` so they can be passed to ``sendText``
+* ``RawFileBody`` and ``ByteArrayBody`` implement ``Expression[Array[Byte]]`` so they can be passed to ``sendBytes``.
+
+See :ref:`http-request-body <HTTP request body for more information>`.
+
 .. _http-ws-checks:
 
 Server Messages: Checks
@@ -119,6 +126,11 @@ You can use almost all the same check criteria as for HTTP requests.
 You can have multiple criteria for a given message:
 
 .. includecode:: code/WsSample.scala#create-multiple-checks
+
+checks can be marked as ``silent``.
+Silent checks won't be reported whatever their outcome.
+
+.. includecode:: code/WsSample.scala#silent-check
 
 .. _http-ws-matching:
 

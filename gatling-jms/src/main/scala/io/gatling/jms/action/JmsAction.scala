@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,18 +23,27 @@ import io.gatling.core.action.RequestAction
 import io.gatling.core.controller.throttle.Throttler
 import io.gatling.core.session._
 import io.gatling.core.util.NameGen
-import io.gatling.jms.client.{ JmsConnection, JmsConnectionPool }
+import io.gatling.jms.client.{ JmsConnection, JmsConnectionPool, JmsProducer }
 import io.gatling.jms.protocol.JmsProtocol
 import io.gatling.jms.request._
 
+class Around(before: () => Unit, after: () => Unit) {
+
+  def apply(f: => Any): Unit = {
+    before()
+    f
+    after()
+  }
+}
+
 abstract class JmsAction(
     attributes: JmsAttributes,
-    protocol:   JmsProtocol,
-    pool:       JmsConnectionPool,
-    throttler:  Throttler,
-    throttled:  Boolean
-)
-  extends RequestAction with JmsLogging with NameGen {
+    protocol: JmsProtocol,
+    pool: JmsConnectionPool,
+    throttler: Option[Throttler]
+) extends RequestAction
+    with JmsLogging
+    with NameGen {
 
   override val requestName: Expression[String] = attributes.requestName
 
@@ -46,25 +55,22 @@ abstract class JmsAction(
       jmsType <- resolveOptionalExpression(attributes.jmsType, session)
       props <- resolveProperties(attributes.messageProperties, session)
       resolvedJmsDestination <- jmsDestination(session)
-      beforeSend0 <- beforeSend(requestName, session)
-      producer = jmsConnection.producer(resolvedJmsDestination, protocol.deliveryMode)
-      sendMsgAction <- attributes.message match {
-        case BytesJmsMessage(bytes) => bytes(session).map(bytes => () => producer.sendBytesMessage(bytes, props, jmsType, beforeSend0))
-        case MapJmsMessage(map)     => map(session).map(map => () => producer.sendMapMessage(map, props, jmsType, beforeSend0))
-        case ObjectJmsMessage(o)    => o(session).map(o => () => producer.sendObjectMessage(o, props, jmsType, beforeSend0))
-        case TextJmsMessage(txt)    => txt(session).map(txt => () => producer.sendTextMessage(txt, props, jmsType, beforeSend0))
-      }
+      JmsProducer(jmsSession, producer) = jmsConnection.producer(resolvedJmsDestination, protocol.deliveryMode)
+      message <- attributes.message.jmsMessage(session, jmsSession)
+      around <- aroundSend(requestName, session, message)
     } yield {
-      if (throttled) {
-        throttler.throttle(session.scenario, sendMsgAction)
-      } else {
-        sendMsgAction()
+      props.foreach { case (key, value) => message.setObjectProperty(key, value) }
+      jmsType.foreach(message.setJMSType)
+
+      throttler match {
+        case Some(th) => th.throttle(session.scenario, () => around(producer.send(message)))
+        case _        => around(producer.send(message))
       }
     }
 
   private def resolveProperties(
-    properties: Map[Expression[String], Expression[Any]],
-    session:    Session
+      properties: Map[Expression[String], Expression[Any]],
+      session: Session
   ): Validation[Map[String, Any]] =
     properties.foldLeft(Map.empty[String, Any].success) {
       case (resolvedProperties, (key, value)) =>
@@ -75,5 +81,5 @@ abstract class JmsAction(
         } yield resolvedProperties + (key -> value)
     }
 
-  protected def beforeSend(requestName: String, session: Session): Validation[Message => Unit]
+  protected def aroundSend(requestName: String, session: Session, message: Message): Validation[Around]
 }

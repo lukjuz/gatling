@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,14 @@
 
 package io.gatling.commons.util
 
+import java.nio.file.Paths
+
 import io.gatling.BaseSpec
 import io.gatling.commons.util.PathHelper._
 
 class PathHelperSpec extends BaseSpec {
 
-  val root = string2path("foo")
+  private val root = Paths.get("foo")
 
   "ancestor" should "throw an IllegalArgumentException when ancestor rank is negative" in {
     an[IllegalArgumentException] should be thrownBy root.ancestor(-1)
@@ -46,7 +48,6 @@ class PathHelperSpec extends BaseSpec {
   "hasExtension" should "return true if the file has one of the specified extension, ignoring case" in {
     (root / "foo.json").hasExtension("json") shouldBe true
     (root / "foo.json").hasExtension("JSON") shouldBe true
-    (root / "foo.json").hasExtension("sql", "mp3", "JSON") shouldBe true
   }
 
   it should "return false if the file has none of the specified extensions" in {
@@ -58,6 +59,6 @@ class PathHelperSpec extends BaseSpec {
   }
 
   it should "remove the file extension if the specified path has one" in {
-    string2path("foo.json").stripExtension shouldBe "foo"
+    Paths.get("foo.json").stripExtension shouldBe "foo"
   }
 }

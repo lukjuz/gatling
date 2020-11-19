@@ -11,7 +11,7 @@ HTTP Helpers
 Dealing with Cookies
 ====================
 
-Cookie support is enabled by default and then Gatling handles Cookies transparently, just like a browser would.
+Gatling supports cookies out-of-the-box and transparently, just like a browser would.
 
 However, some use cases require a more fine grain control.
 
@@ -26,7 +26,7 @@ One might want to manually add or compute a cookie:
 
 Cookie can also take more optional parameters::
 
-  Cookie(name: String, value: Expression[String])
+  Cookie(name: Expression[String], value: Expression[String])
     .withDomain(domain: String)
     .withPath(path: String)
     .withMaxAge(maxAge: Int)
@@ -48,7 +48,7 @@ Get the cookie value and put it in the session
 
 CookieKey can also take more optional parameters::
 
-  CookieKey(name: String)
+  CookieKey(name: Expression[String])
     .withDomain(domain: String)
     .withPath(path: String)
     .withSecure(secure: Boolean)

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,4 +20,4 @@ import io.gatling.charts.component.Component
 import io.gatling.commons.stats.Group
 
 private[charts] class RequestDetailsPageTemplate(title: String, requestName: String, group: Option[Group], components: Component*)
-  extends PageTemplate(title, true, Some(requestName), group, components: _*)
+    extends PageTemplate(title, true, Some(requestName), group, components: _*)

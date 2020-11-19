@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,8 +30,6 @@ public class HttpClientConfig {
 
   private Charset defaultCharset = UTF_8;
 
-  private boolean enableZeroCopy = true;
-
   private long handshakeTimeout = 10_000;
 
   private SslContext defaultSslContext;
@@ -52,9 +50,9 @@ public class HttpClientConfig {
 
   private boolean tcpNoDelay;
 
-  private boolean soReuseAddress;
+  private boolean soKeepAlive;
 
-  private int maxRetry;
+  private boolean soReuseAddress;
 
   private String threadPoolName = "gatling-http-client";
 
@@ -73,15 +71,6 @@ public class HttpClientConfig {
 
   public HttpClientConfig setDefaultCharset(Charset defaultCharset) {
     this.defaultCharset = defaultCharset;
-    return this;
-  }
-
-  public boolean isEnableZeroCopy() {
-    return enableZeroCopy;
-  }
-
-  public HttpClientConfig setEnableZeroCopy(boolean enableZeroCopy) {
-    this.enableZeroCopy = enableZeroCopy;
     return this;
   }
 
@@ -157,21 +146,21 @@ public class HttpClientConfig {
     return this;
   }
 
+  public boolean isSoKeepAlive() {
+    return soKeepAlive;
+  }
+
+  public HttpClientConfig setSoKeepAlive(boolean soKeepAlive) {
+    this.soKeepAlive = soKeepAlive;
+    return this;
+  }
+
   public boolean isSoReuseAddress() {
     return soReuseAddress;
   }
 
   public HttpClientConfig setSoReuseAddress(boolean soReuseAddress) {
     this.soReuseAddress = soReuseAddress;
-    return this;
-  }
-
-  public int getMaxRetry() {
-    return maxRetry;
-  }
-
-  public HttpClientConfig setMaxRetry(int maxRetry) {
-    this.maxRetry = maxRetry;
     return this;
   }
 

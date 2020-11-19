@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,10 +31,10 @@ import io.gatling.recorder.http.ssl.SslServerContext
 import akka.actor.ActorSystem
 import com.typesafe.scalalogging.StrictLogging
 import io.netty.bootstrap.{ Bootstrap, ServerBootstrap }
+import io.netty.channel.{ Channel, ChannelInitializer, ChannelOption, EventLoopGroup }
 import io.netty.channel.group.{ ChannelGroup, DefaultChannelGroup }
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.nio.{ NioServerSocketChannel, NioSocketChannel }
-import io.netty.channel.{ Channel, ChannelInitializer, ChannelOption, EventLoopGroup }
 import io.netty.handler.codec.http._
 import io.netty.util.concurrent.GlobalEventExecutor
 
@@ -72,7 +72,8 @@ object Mitm extends StrictLogging {
       }
 
     val clientBootstrap =
-      new Bootstrap().channel(classOf[NioSocketChannel])
+      new Bootstrap()
+        .channel(classOf[NioSocketChannel])
         .group(clientEventLoopGroup)
         .option(ChannelOption.TCP_NODELAY, java.lang.Boolean.TRUE)
         .handler(new ChannelInitializer[Channel] {
@@ -98,7 +99,10 @@ object Mitm extends StrictLogging {
             .addLast("responseEncoder", new HttpResponseEncoder)
             .addLast("contentCompressor", new HttpContentCompressor)
             .addLast("aggregator", new HttpObjectAggregator(maxContentLength))
-            .addLast(GatlingServerHandler, new ServerHandler(actorSystem, outgoingProxy, clientBootstrap, sslServerContext, trafficLogger, httpClientCodecFactory, clock))
+            .addLast(
+              GatlingServerHandler,
+              new ServerHandler(actorSystem, outgoingProxy, clientBootstrap, sslServerContext, trafficLogger, httpClientCodecFactory, clock)
+            )
         }
       })
 
@@ -115,11 +119,11 @@ object Mitm extends StrictLogging {
 }
 
 class Mitm(
-    serverChannelGroup:         ChannelGroup,
-    clientEventLoopGroup:       EventLoopGroup,
-    serverBossEventLoopGroup:   EventLoopGroup,
+    serverChannelGroup: ChannelGroup,
+    clientEventLoopGroup: EventLoopGroup,
+    serverBossEventLoopGroup: EventLoopGroup,
     serverWorkerEventLoopGroup: EventLoopGroup,
-    actorSystem:                ActorSystem
+    actorSystem: ActorSystem
 ) {
 
   def shutdown(): Unit = {

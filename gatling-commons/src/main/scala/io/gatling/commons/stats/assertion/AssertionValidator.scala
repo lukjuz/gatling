@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ object AssertionValidator {
   def validateAssertions(dataReader: GeneralStatsSource): List[AssertionResult] =
     dataReader.assertions.flatMap(validateAssertion(_, dataReader))
 
+  @SuppressWarnings(Array("org.wartremover.warts.Recursion"))
   private def validateAssertion(assertion: Assertion, source: GeneralStatsSource): List[AssertionResult] = {
 
     val printablePath = assertion.path.printable
@@ -48,14 +49,14 @@ object AssertionValidator {
 
       case Details(parts) =>
         val generalStats: ValidatedRequestPath = findPath(parts, source) match {
-          case None =>
-            Failure(s"Could not find stats matching assertion path $parts")
-
           case Some(RequestStatsPath(request, group)) =>
-            Success(status => source.requestGeneralStats(Some(request), group, status))
+            Success(source.requestGeneralStats(Some(request), group, _))
 
           case Some(GroupStatsPath(group)) =>
-            Success(status => source.groupCumulatedResponseTimeGeneralStats(group, status))
+            Success(source.groupCumulatedResponseTimeGeneralStats(group, _))
+
+          case _ =>
+            Failure(s"Could not find stats matching assertion path $parts")
         }
         generalStats match {
           case Success(stats) => List(resolveTarget(assertion, stats, printablePath))
@@ -117,13 +118,13 @@ object AssertionValidator {
     target.metric match {
       case SuccessfulRequests =>
         if (allCount == 0) {
-          0.0
+          0
         } else {
           stats(Some(OK)).count.toDouble / allCount * 100
         }
       case FailedRequests =>
         if (allCount == 0) {
-          100.0
+          100
         } else {
           stats(Some(KO)).count.toDouble / allCount * 100
         }
@@ -146,22 +147,20 @@ object AssertionValidator {
     }
   }
 
-  private def resolveCondition(assertion: Assertion, path: String, printableTarget: String, actualValue: Double) = {
+  private def resolveCondition(assertion: Assertion, path: String, printableTarget: String, actualValue: Double): AssertionResult = {
 
-    val printableCondition = assertion.condition.printable
+    val (result, expectedValueMessage) =
+      assertion.condition match {
+        case Lt(upper)                    => (actualValue < upper, upper.toString)
+        case Lte(upper)                   => (actualValue <= upper, upper.toString)
+        case Gt(lower)                    => (actualValue > lower, lower.toString)
+        case Gte(lower)                   => (actualValue >= lower, lower.toString)
+        case Is(exactValue)               => (actualValue == exactValue, exactValue.toString)
+        case Between(lower, upper, true)  => (actualValue >= lower && actualValue <= upper, s"$lower and $upper")
+        case Between(lower, upper, false) => (actualValue > lower && actualValue < upper, s"$lower and $upper")
+        case In(elements)                 => (elements.contains(actualValue), elements.toString)
+      }
 
-    def assertionResult(result: Boolean, expectedValueMessage: Any) =
-      AssertionResult(assertion, result, s"$path: $printableTarget $printableCondition $expectedValueMessage", Some(actualValue))
-
-    assertion.condition match {
-      case Lt(upper)                    => assertionResult(actualValue < upper, upper)
-      case Lte(upper)                   => assertionResult(actualValue <= upper, upper)
-      case Gt(lower)                    => assertionResult(actualValue > lower, lower)
-      case Gte(lower)                   => assertionResult(actualValue >= lower, lower)
-      case Is(exactValue)               => assertionResult(actualValue == exactValue, exactValue)
-      case Between(lower, upper, true)  => assertionResult(actualValue >= lower && actualValue <= upper, s"$lower and $upper")
-      case Between(lower, upper, false) => assertionResult(actualValue > lower && actualValue < upper, s"$lower and $upper")
-      case In(elements)                 => assertionResult(elements.contains(actualValue), elements)
-    }
+    AssertionResult(assertion, result, s"$path: $printableTarget ${assertion.condition.printable} $expectedValueMessage", Some(actualValue))
   }
 }

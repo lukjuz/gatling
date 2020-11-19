@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,13 @@
 
 package io.gatling.core.stats.writer
 
+import java.util.Date
+
 import scala.collection.mutable
 
 import io.gatling.commons.stats.{ KO, OK }
 import io.gatling.commons.util.Clock
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.stats.message.{ End, Start }
 
 class UserCounters(val totalUserCount: Option[Long]) {
 
@@ -32,21 +33,26 @@ class UserCounters(val totalUserCount: Option[Long]) {
   def doneCount: Long = _doneCount
 
   def userStart(): Unit = _activeCount += 1
-  def userDone(): Unit = { _activeCount -= 1; _doneCount += 1 }
+  def userDone(): Unit = {
+    _activeCount -= 1
+    _doneCount += 1
+  }
   def waitingCount: Long = totalUserCount.map(c => math.max(c - _activeCount - _doneCount, 0)).getOrElse(0L)
 }
 
-class RequestCounters(var successfulCount: Int = 0, var failedCount: Int = 0)
+object RequestCounters {
+  def empty: RequestCounters = new RequestCounters(0, 0)
+}
 
-class ConsoleData(
-    val startUpTime:           Long,
-    var complete:              Boolean                              = false,
-    val usersCounters:         mutable.Map[String, UserCounters]    = mutable.Map.empty[String, UserCounters],
-    val globalRequestCounters: RequestCounters                      = new RequestCounters,
-    val requestsCounters:      mutable.Map[String, RequestCounters] = mutable.LinkedHashMap.empty,
-    val errorsCounters:        mutable.Map[String, Int]             = mutable.LinkedHashMap.empty
-)
-  extends DataWriterData
+class RequestCounters(var successfulCount: Int, var failedCount: Int)
+
+class ConsoleData(val startUpTime: Long) extends DataWriterData {
+  var complete: Boolean = false
+  val usersCounters: mutable.Map[String, UserCounters] = mutable.Map.empty
+  val globalRequestCounters: RequestCounters = RequestCounters.empty
+  val requestsCounters: mutable.Map[String, RequestCounters] = mutable.LinkedHashMap.empty
+  val errorsCounters: mutable.Map[String, Int] = mutable.LinkedHashMap.empty
+}
 
 class ConsoleDataWriter(clock: Clock, configuration: GatlingConfiguration) extends DataWriter[ConsoleData] {
 
@@ -60,7 +66,7 @@ class ConsoleDataWriter(clock: Clock, configuration: GatlingConfiguration) exten
 
     scenarios.foreach(scenario => data.usersCounters.put(scenario.name, new UserCounters(scenario.totalUserCount)))
 
-    setTimer(flushTimerName, Flush, configuration.data.console.writePeriod, repeat = true)
+    startTimerWithFixedDelay(flushTimerName, Flush, configuration.data.console.writePeriod)
 
     data
   }
@@ -70,34 +76,36 @@ class ConsoleDataWriter(clock: Clock, configuration: GatlingConfiguration) exten
 
     val runDuration = (clock.nowMillis - startUpTime) / 1000
 
-    val summary = ConsoleSummary(runDuration, usersCounters, globalRequestCounters, requestsCounters, errorsCounters, configuration)
+    val summary = ConsoleSummary(runDuration, usersCounters, globalRequestCounters, requestsCounters, errorsCounters, configuration, new Date)
     complete = summary.complete
     println(summary.text)
   }
 
   override def onMessage(message: LoadEventMessage, data: ConsoleData): Unit = message match {
-    case user: UserMessage         => onUserMessage(user, data)
+    case user: UserStartMessage    => onUserStartMessage(user, data)
+    case user: UserEndMessage      => onUserEndMessage(user, data)
     case response: ResponseMessage => onResponseMessage(response, data)
     case error: ErrorMessage       => onErrorMessage(error, data)
     case _                         =>
   }
 
-  private def onUserMessage(user: UserMessage, data: ConsoleData): Unit = {
+  private def onUserStartMessage(user: UserStartMessage, data: ConsoleData): Unit = {
     import data._
     import user._
 
-    event match {
-      case Start =>
-        usersCounters.get(session.scenario) match {
-          case Some(userCounters) => userCounters.userStart()
-          case _                  => logger.error(s"Internal error, scenario '${session.scenario}' has not been correctly initialized")
-        }
+    usersCounters.get(scenario) match {
+      case Some(userCounters) => userCounters.userStart()
+      case _                  => logger.error(s"Internal error, scenario '$scenario' has not been correctly initialized")
+    }
+  }
 
-      case End =>
-        usersCounters.get(session.scenario) match {
-          case Some(userCounters) => userCounters.userDone()
-          case _                  => logger.error(s"Internal error, scenario '${session.scenario}' has not been correctly initialized")
-        }
+  private def onUserEndMessage(user: UserEndMessage, data: ConsoleData): Unit = {
+    import data._
+    import user._
+
+    usersCounters.get(scenario) match {
+      case Some(userCounters) => userCounters.userDone()
+      case _                  => logger.error(s"Internal error, scenario '$scenario' has not been correctly initialized")
     }
   }
 
@@ -106,7 +114,7 @@ class ConsoleDataWriter(clock: Clock, configuration: GatlingConfiguration) exten
     import response._
 
     val requestPath = (groupHierarchy :+ name).mkString(" / ")
-    val requestCounters = requestsCounters.getOrElseUpdate(requestPath, new RequestCounters)
+    val requestCounters = requestsCounters.getOrElseUpdate(requestPath, RequestCounters.empty)
 
     status match {
       case OK =>

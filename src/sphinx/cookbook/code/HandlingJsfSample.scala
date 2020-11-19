@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 
 import scala.concurrent.duration._
+
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
 
@@ -29,17 +30,22 @@ class HandlingJsfSample {
   val jsfPartialViewStateCheck = xpath("//update[contains(@id,'ViewState')]")
     .saveAs("viewState")
 
-  def jsfGet(name: String, url: Expression[String]) = http(name).get(url)
-    .check(jsfViewStateCheck)
-  def jsfPost(name: String, url: Expression[String]) = http(name).post(url)
-    .formParam("javax.faces.ViewState", "${viewState}")
-    .check(jsfViewStateCheck)
-  def jsfPartialPost(name: String, url: Expression[String]) = http(name)
-    .post(url)
-    .header("Faces-Request", "partial/ajax")
-    .formParam("javax.faces.partial.ajax", "true")
-    .formParam("javax.faces.ViewState", "${viewState}")
-    .check(jsfPartialViewStateCheck)
+  def jsfGet(name: String, url: Expression[String]) =
+    http(name)
+      .get(url)
+      .check(jsfViewStateCheck)
+  def jsfPost(name: String, url: Expression[String]) =
+    http(name)
+      .post(url)
+      .formParam("javax.faces.ViewState", "${viewState}")
+      .check(jsfViewStateCheck)
+  def jsfPartialPost(name: String, url: Expression[String]) =
+    http(name)
+      .post(url)
+      .header("Faces-Request", "partial/ajax")
+      .formParam("javax.faces.partial.ajax", "true")
+      .formParam("javax.faces.ViewState", "${viewState}")
+      .check(jsfPartialViewStateCheck)
   //#factory-methods
 
   //#example-scenario
@@ -64,20 +70,29 @@ class HandlingJsfSample {
     val jsfViewStateCheck = regex("""="javax.faces.ViewState" value="([^"]*)"""")
       .saveAs("viewState")
 
-    def jsfGet(name: String, url: Expression[String]) = http(name).get(url)
-      .check(jsfViewStateCheck)
-    def jsfPost(name: String, url: Expression[String]) = http(name).post(url)
-      .formParam("javax.faces.ViewState", "${viewState}")
-      .check(jsfViewStateCheck).check(jsfPageFlowCheck)
+    def jsfGet(name: String, url: Expression[String]) =
+      http(name)
+        .get(url)
+        .check(jsfViewStateCheck)
+    def jsfPost(name: String, url: Expression[String]) =
+      http(name)
+        .post(url)
+        .formParam("javax.faces.ViewState", "${viewState}")
+        .check(jsfViewStateCheck)
+        .check(jsfPageFlowCheck)
 
-    def trinidadPost(name: String, url: Expression[String]) = http(name).post(url)
-      .formParam("javax.faces.ViewState", "${viewState}")
-      .queryParam("_afPfm", "${afPfm}")
-      .check(jsfViewStateCheck)
-      .check(jsfPageFlowCheck)
-    def trinidadDownload(name: String, url: Expression[String]) = http(name).post(url)
-      .formParam("javax.faces.ViewState", "${viewState}")
-      .queryParam("_afPfm", "${afPfm}")
+    def trinidadPost(name: String, url: Expression[String]) =
+      http(name)
+        .post(url)
+        .formParam("javax.faces.ViewState", "${viewState}")
+        .queryParam("_afPfm", "${afPfm}")
+        .check(jsfViewStateCheck)
+        .check(jsfPageFlowCheck)
+    def trinidadDownload(name: String, url: Expression[String]) =
+      http(name)
+        .post(url)
+        .formParam("javax.faces.ViewState", "${viewState}")
+        .queryParam("_afPfm", "${afPfm}")
     //#trinidad
   }
 }

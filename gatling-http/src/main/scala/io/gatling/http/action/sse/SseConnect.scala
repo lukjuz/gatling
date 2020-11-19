@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,51 +18,56 @@ package io.gatling.http.action.sse
 
 import io.gatling.commons.util.Clock
 import io.gatling.commons.validation.{ Failure, Validation }
+import io.gatling.core.CoreComponents
 import io.gatling.core.action.{ Action, RequestAction }
 import io.gatling.core.session.{ Expression, Session }
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
-import io.gatling.http.action.sse.fsm.{ PerformInitialConnect, SseActor }
+import io.gatling.http.action.sse.fsm.SseFsm
 import io.gatling.http.check.sse.SseMessageCheckSequence
 import io.gatling.http.client.Request
 import io.gatling.http.protocol.HttpComponents
 
 class SseConnect(
-    val requestName:       Expression[String],
-    sseName:               String,
-    request:               Expression[Request],
+    val requestName: Expression[String],
+    sseName: String,
+    request: Expression[Request],
     connectCheckSequences: List[SseMessageCheckSequence],
-    httpComponents:        HttpComponents,
-    val next:              Action
-) extends RequestAction with SseAction with NameGen {
+    coreComponents: CoreComponents,
+    httpComponents: HttpComponents,
+    val next: Action
+) extends RequestAction
+    with SseAction
+    with NameGen {
 
   override val name: String = genName("sseConnect")
 
-  override def clock: Clock = httpComponents.coreComponents.clock
+  override def clock: Clock = coreComponents.clock
 
-  override def statsEngine: StatsEngine = httpComponents.coreComponents.statsEngine
+  override def statsEngine: StatsEngine = coreComponents.statsEngine
 
   override def sendRequest(requestName: String, session: Session): Validation[Unit] =
-    fetchActor(sseName, session) match {
+    fetchFsm(sseName, session) match {
       case _: Failure =>
         for {
           request <- request(session)
         } yield {
           logger.info(s"Opening sse '$sseName': Scenario '${session.scenario}', UserId #${session.userId}")
 
-          val wsActor = httpComponents.coreComponents.actorSystem.actorOf(SseActor.props(
+          val fsm = SseFsm(
+            session,
             sseName,
-            request,
             requestName,
+            request,
             connectCheckSequences,
             statsEngine,
             httpComponents.httpEngine,
             httpComponents.httpProtocol,
-            clock,
-            httpComponents.coreComponents.configuration
-          ), genName("sseActor"))
+            clock
+          )
 
-          wsActor ! PerformInitialConnect(session, next)
+          val sessionWithFsm = session.set(sseName, fsm)
+          fsm.onPerformInitialConnect(sessionWithFsm, next)
         }
 
       case _ =>

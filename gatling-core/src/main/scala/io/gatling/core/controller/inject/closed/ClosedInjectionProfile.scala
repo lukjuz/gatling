@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,23 +23,24 @@ import io.gatling.core.controller.inject.{ InjectionProfile, Workload }
 import io.gatling.core.scenario.Scenario
 import io.gatling.core.stats.StatsEngine
 
-import akka.actor.ActorSystem
+import io.netty.channel.EventLoopGroup
 
-case class ClosedInjectionProfile(steps: Iterable[ClosedInjectionStep]) extends InjectionProfile {
+final class ClosedInjectionProfile(steps: Iterable[ClosedInjectionStep]) extends InjectionProfile {
 
   // doesn't make sense for ClosedInjectionProfile
   override def totalUserCount: Option[Long] = None
 
-  override def workload(scenario: Scenario, userIdGen: AtomicLong, startTime: Long, system: ActorSystem, statsEngine: StatsEngine, clock: Clock): Workload =
-    new ClosedWorkload(scenario, steps, userIdGen, startTime, system, statsEngine, clock)
+  override def workload(
+      scenario: Scenario,
+      userIdGen: AtomicLong,
+      startTime: Long,
+      eventLoopGroup: EventLoopGroup,
+      statsEngine: StatsEngine,
+      clock: Clock
+  ): Workload =
+    new ClosedWorkload(scenario, steps, userIdGen, eventLoopGroup, statsEngine, clock)
 
   //[fl]
-  //
-  //
-  //
-  //
-  //
-  //
   //
   //
   //[fl]

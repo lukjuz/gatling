@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,17 @@ package io.gatling.http.client.impl;
 
 import io.gatling.http.client.HttpListener;
 import io.gatling.http.client.Request;
+import io.gatling.http.client.impl.request.WritableRequest;
 import io.gatling.http.client.pool.ChannelPoolKey;
+import io.gatling.http.client.util.HttpUtils;
 import io.netty.handler.ssl.SslContext;
+import io.netty.util.ReferenceCounted;
 
 public class HttpTx {
+
+  public enum ChannelState {
+    NEW, POOLED, RETRY
+  }
 
   final Request request;
   final HttpListener listener;
@@ -31,27 +38,39 @@ public class HttpTx {
   private final SslContext alpnSslContext;
 
   // mutable state
-  int remainingTries;
+  ChannelState channelState;
   boolean closeConnection;
+  WritableRequest pendingRequestExpectingContinue;
 
-  HttpTx(Request request, HttpListener listener, RequestTimeout requestTimeout, ChannelPoolKey key, int remainingTries, SslContext sslContext, SslContext alpnSslContext) {
+  HttpTx(Request request, HttpListener listener, RequestTimeout requestTimeout, ChannelPoolKey key, SslContext sslContext, SslContext alpnSslContext) {
     this.request = request;
     this.listener = listener;
     this.requestTimeout = requestTimeout;
     this.key = key;
-    this.remainingTries = remainingTries;
+    this.channelState = ChannelState.POOLED; // set to NEW in DefaultHttpClient#sendTxWithNewChannel
     this.sslContext = sslContext;
     this.alpnSslContext = alpnSslContext;
+    this.closeConnection =  HttpUtils.isConnectionClose(request.getHeaders());
   }
 
   SslContext sslContext() {
     if (request.isAlpnRequired()) {
       if (alpnSslContext == null) {
-        throw new UnsupportedOperationException("ALNP is not available (this path shouldn't be possible, please report).");
+        throw new UnsupportedOperationException("ALPN is not available (this path shouldn't be possible, please report).");
       }
       return alpnSslContext;
     } else {
       return sslContext;
+    }
+  }
+
+  void releasePendingRequestExpectingContinue() {
+    if (pendingRequestExpectingContinue != null) {
+      Object content = pendingRequestExpectingContinue.getContent();
+      if (content instanceof ReferenceCounted) {
+        ((ReferenceCounted) content).release();
+      }
+      pendingRequestExpectingContinue = null;
     }
   }
 }

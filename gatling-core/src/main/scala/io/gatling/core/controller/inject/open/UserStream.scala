@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,11 +24,13 @@ private[inject] object UserStreamBatchResult {
   val Empty = UserStreamBatchResult(0, continue = false)
 }
 
-private[inject] case class UserStreamBatchResult(count: Long, continue: Boolean)
+private[inject] final case class UserStreamBatchResult(count: Long, continue: Boolean)
 
 object UserStream {
   def apply(steps: Iterable[OpenInjectionStep]): UserStream = {
-    val users = steps.foldRight(Iterator.empty: Iterator[FiniteDuration]) { (step, iterator) => step.chain(iterator) }
+    val users = steps.foldRight(Iterator.empty: Iterator[FiniteDuration]) { (step, iterator) =>
+      step.chain(iterator)
+    }
     new UserStream(users)
   }
 }
@@ -54,7 +56,6 @@ private[inject] class UserStream(users: Iterator[FiniteDuration]) {
 
         if (continue) {
           count += 1
-          // TODO instead of scheduling each user separately, we could group them by rounded-up delay (Akka defaults to 10ms)
           f(delay)
         } else {
           streamNonEmpty = true

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,29 +17,31 @@
 package io.gatling.http.action.sse
 
 import io.gatling.commons.util.Clock
-import io.gatling.core.action.{ Action, ActorBasedAction, RequestAction }
+import io.gatling.commons.validation.Validation
+import io.gatling.core.action.{ Action, RequestAction }
 import io.gatling.core.session.{ Expression, Session }
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
-import io.gatling.http.action.sse.fsm.ClientCloseRequest
 
 class SseClose(
     val requestName: Expression[String],
-    sseName:         String,
+    sseName: String,
     val statsEngine: StatsEngine,
-    val clock:       Clock,
-    val next:        Action
-) extends RequestAction with ActorBasedAction with SseAction with NameGen {
+    val clock: Clock,
+    val next: Action
+) extends RequestAction
+    with SseAction
+    with NameGen {
 
-  override val name = genName("sseClose")
+  override val name: String = genName("sseClose")
 
-  override def sendRequest(requestName: String, session: Session) =
+  override def sendRequest(requestName: String, session: Session): Validation[Unit] =
     for {
-      wsActor <- fetchActor(sseName, session)
+      fsm <- fetchFsm(sseName, session)
     } yield {
       // [fl]
       //
       // [fl]
-      wsActor ! ClientCloseRequest(requestName, session, next)
+      fsm.onClientCloseRequest(requestName, session, next)
     }
 }

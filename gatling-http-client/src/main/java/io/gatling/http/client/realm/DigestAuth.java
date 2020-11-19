@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,16 +16,16 @@
 
 package io.gatling.http.client.realm;
 
-import io.gatling.netty.util.ahc.StringBuilderPool;
+import io.gatling.netty.util.StringBuilderPool;
 import io.netty.handler.codec.http.HttpMethod;
 
 import java.security.MessageDigest;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static io.gatling.http.client.ahc.util.MessageDigestUtils.pooledMd5MessageDigest;
-import static io.gatling.http.client.ahc.util.StringUtils.*;
+import static io.gatling.http.client.util.MessageDigestUtils.pooledMd5MessageDigest;
+import static io.gatling.http.client.util.StringUtils.*;
 import static java.nio.charset.StandardCharsets.ISO_8859_1;
-import static io.gatling.http.client.ahc.util.MiscUtils.*;
+import static io.gatling.http.client.util.MiscUtils.*;
 
 class DigestAuth {
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,10 +22,8 @@ import io.gatling.commons.util.Io._
 import io.gatling.commons.util.PathHelper._
 import io.gatling.core.config.GatlingConfiguration
 
-import com.dongxiguo.fastring.Fastring
-
 private[charts] class TemplateWriter(path: Path) {
 
-  def writeToFile(output: Fastring)(implicit configuration: GatlingConfiguration): Unit =
-    withCloseable(path.writer(configuration.core.charset)) { output.appendTo }
+  def writeToFile(output: String)(implicit configuration: GatlingConfiguration): Unit =
+    withCloseable(path.writer(configuration.core.charset)) { _.write(output) }
 }

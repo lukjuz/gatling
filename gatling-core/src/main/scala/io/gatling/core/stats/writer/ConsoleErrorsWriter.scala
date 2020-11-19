@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,10 @@
 
 package io.gatling.core.stats.writer
 
+import java.{ lang => jl }
+
 import io.gatling.commons.stats.ErrorStats
 import io.gatling.commons.util.StringHelper._
-
-import com.dongxiguo.fastring.Fastring.Implicits._
 
 /**
  * Object for writing errors statistics to the console.
@@ -32,18 +32,24 @@ object ConsoleErrorsWriter {
   def formatPercent(percent: Double): String = f"$percent%3.2f"
 
   val OneHundredPercent: String = formatPercent(100).dropRight(1)
-  def writeError(errors: ErrorStats): Fastring = {
-    val ErrorStats(msg, count, _) = errors
 
+  def writeError(sb: jl.StringBuilder, errors: ErrorStats): jl.StringBuilder = {
     val percent = if (errors.count == errors.totalCount) OneHundredPercent else formatPercent(errors.percentage)
-    val firstLineLen = TextLen.min(msg.length)
-    val firstLine = fast"> ${msg.substring(0, firstLineLen).rightPad(TextLen)} ${count.leftPad(6)} (${percent.leftPad(5)}%)"
+    val message = errors.message
+    val firstLineLen = TextLen.min(message.length)
 
-    if (msg.length > TextLen) {
-      val secondLine = msg.substring(TextLen)
-      fast"$firstLine$Eol${secondLine.truncate(TextLen)}"
+    sb.append("> ")
+      .append(message.substring(0, firstLineLen).rightPad(TextLen))
+      .append(' ')
+      .append(errors.count.toString.leftPad(6))
+      .append(" (")
+      .append(percent.leftPad(5))
+      .append("%)")
+
+    if (message.length > TextLen) {
+      sb.append(Eol).append(message.substring(TextLen).truncate(TextLen))
     } else {
-      firstLine
+      sb
     }
   }
 }

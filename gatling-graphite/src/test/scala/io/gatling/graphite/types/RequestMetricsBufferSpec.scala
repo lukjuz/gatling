@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,13 +25,15 @@ import io.gatling.core.config.GatlingConfiguration
 
 class RequestMetricsBufferSpec extends BaseSpec {
 
-  private val configuration = GatlingConfiguration.loadForTest(mutable.Map(
-    charting.indicators.Percentile1 -> 95,
-    charting.indicators.Percentile2 -> 99,
-    http.ahc.RequestTimeout -> 60000
-  ))
+  private val configuration = GatlingConfiguration.loadForTest(
+    mutable.Map(
+      charting.indicators.Percentile1 -> 95,
+      charting.indicators.Percentile2 -> 99,
+      http.RequestTimeout -> 60000
+    )
+  )
 
-  def allValues(m: Metrics) = Seq(m.max, m.min, m.percentile1, m.percentile2)
+  private def allValues(m: Metrics) = Seq(m.max, m.min, m.percentile1, m.percentile2)
 
   "RequestMetricsBuffer" should "work when there is no measure" in {
     val buff = new HistogramRequestMetricsBuffer(configuration)
@@ -50,7 +52,7 @@ class RequestMetricsBufferSpec extends BaseSpec {
     val okMetrics = metricsByStatus.ok.get
 
     metricsByStatus.ko shouldBe None
-    metricsByStatus.all.map(_.count) shouldBe Some(1l)
+    metricsByStatus.all.map(_.count) shouldBe Some(1L)
     okMetrics.count shouldBe 1L
     all(allValues(okMetrics)) shouldBe 20
   }

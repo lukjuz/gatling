@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,37 +24,28 @@ import io.gatling.core.controller.inject.{ InjectionProfile, Workload }
 import io.gatling.core.scenario.Scenario
 import io.gatling.core.stats.StatsEngine
 
-import akka.actor.ActorSystem
+import io.netty.channel.EventLoopGroup
 
 /**
  * This class represents the configuration of a scenario
  *
  * @param steps the number of users that will behave as this scenario says
  */
-case class OpenInjectionProfile(steps: Iterable[OpenInjectionStep]) extends InjectionProfile {
+final class OpenInjectionProfile(val steps: Iterable[OpenInjectionStep]) extends InjectionProfile {
 
   override def totalUserCount: Option[Long] = Some(steps.sumBy(_.users))
 
-  override def workload(scenario: Scenario, userIdGen: AtomicLong, startTime: Long, system: ActorSystem, statsEngine: StatsEngine, clock: Clock): Workload =
-    new OpenWorkload(scenario: Scenario, UserStream(steps), userIdGen, startTime, system, statsEngine, clock)
+  override def workload(
+      scenario: Scenario,
+      userIdGen: AtomicLong,
+      startTime: Long,
+      eventLoopGroup: EventLoopGroup,
+      statsEngine: StatsEngine,
+      clock: Clock
+  ): Workload =
+    new OpenWorkload(scenario: Scenario, UserStream(steps), userIdGen, startTime, eventLoopGroup, statsEngine, clock)
 
   //[fl]
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
   //
   //
   //[fl]

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,10 @@
 
 package io.gatling.commons.util
 
-import java.io.{ File, FileInputStream, FileNotFoundException, InputStream }
+import java.io._
 import java.security.KeyStore
-
 import javax.net.ssl.{ KeyManagerFactory, TrustManagerFactory }
+
 import io.gatling.commons.util.Io.withCloseable
 
 object Ssl {
@@ -27,7 +27,7 @@ object Ssl {
   private def storeStream(filePath: String): InputStream = {
     val storeFile = new File(filePath)
     if (storeFile.exists)
-      new FileInputStream(storeFile)
+      new BufferedInputStream(new FileInputStream(storeFile))
     else
       Option(getClass.getClassLoader.getResourceAsStream(filePath)).getOrElse(throw new FileNotFoundException(filePath))
   }
@@ -52,5 +52,4 @@ object Ssl {
       kmf.init(keyStore, passwordCharArray)
       kmf
     }
-
 }

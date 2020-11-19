@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package io.gatling.core.controller.inject
 
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 import scala.concurrent.duration.{ Duration, FiniteDuration }
@@ -24,19 +25,17 @@ import io.gatling.commons.util.Clock
 import io.gatling.core.scenario.Scenario
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
-import io.gatling.core.stats.message.Start
-import io.gatling.core.stats.writer.UserMessage
+import io.gatling.core.stats.writer.UserEndMessage
 
-import akka.actor.ActorSystem
 import com.typesafe.scalalogging.StrictLogging
+import io.netty.channel.{ EventLoop, EventLoopGroup }
 
 abstract class Workload(
-    scenario:    Scenario,
-    userIdGen:   AtomicLong,
-    startTime:   Long,
-    system:      ActorSystem,
+    scenario: Scenario,
+    userIdGen: AtomicLong,
+    eventLoopGroup: EventLoopGroup,
     statsEngine: StatsEngine,
-    clock:       Clock
+    clock: Clock
 ) extends StrictLogging {
 
   private var scheduled = 0
@@ -49,21 +48,25 @@ abstract class Workload(
 
   protected def incrementStoppedUsers(): Unit = stopped += 1
 
-  private def startUser(userId: Long): Unit = {
-    val rawSession = Session(scenario = scenario.name, userId, clock.nowMillis, onExit = scenario.onExit)
+  private def startUser(userId: Long, eventLoop: EventLoop): Unit = {
+    val rawSession = Session(scenario.name, userId, scenario.onExit, eventLoop)
     val session = scenario.onStart(rawSession)
+    val timestamp = clock.nowMillis
     scenario.entry ! session
     logger.debug(s"Start user #${session.userId}")
-    statsEngine.logUser(UserMessage(session, Start, session.startDate))
+    statsEngine.logUserStart(scenario.name, timestamp)
   }
 
   protected def injectUser(delay: FiniteDuration): Unit = {
     incrementScheduledUsers()
     val userId = userIdGen.incrementAndGet()
-    if (delay <= Duration.Zero) {
-      startUser(userId)
-    } else {
-      system.scheduler.scheduleOnce(delay)(startUser(userId))(system.dispatcher)
+    val eventLoop = eventLoopGroup.next()
+    if (!eventLoop.isShutdown) {
+      if (delay <= Duration.Zero) {
+        eventLoop.execute(() => startUser(userId, eventLoop))
+      } else {
+        eventLoop.schedule((() => startUser(userId, eventLoop)): Runnable, delay.toMillis, TimeUnit.MILLISECONDS)
+      }
     }
   }
 
@@ -71,7 +74,7 @@ abstract class Workload(
 
   def injectBatch(batchWindow: FiniteDuration): Unit
 
-  def endUser(userMessage: UserMessage): Unit
+  def endUser(userMessage: UserEndMessage): Unit
 
   def isAllUsersScheduled: Boolean = allScheduled
 

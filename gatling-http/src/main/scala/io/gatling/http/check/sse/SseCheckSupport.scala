@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,22 +17,41 @@
 package io.gatling.http.check.sse
 
 import io.gatling.core.check._
+import io.gatling.core.check.jmespath.JmesPathCheckType
+import io.gatling.core.check.jsonpath.JsonPathCheckType
+import io.gatling.core.check.regex.RegexCheckType
+import io.gatling.core.check.string.BodyStringCheckType
+import io.gatling.core.check.substring.SubstringCheckType
 import io.gatling.core.json.JsonParsers
+
+import com.fasterxml.jackson.databind.JsonNode
 
 trait SseCheckSupport {
 
   implicit def checkBuilder2SseCheck[A, P, X](checkBuilder: CheckBuilder[A, P, X])(implicit materializer: CheckMaterializer[A, SseCheck, String, P]): SseCheck =
     checkBuilder.build(materializer)
 
-  implicit def validatorCheckBuilder2SseCheck[A, P, X](validatorCheckBuilder: ValidatorCheckBuilder[A, P, X])(implicit materializer: CheckMaterializer[A, SseCheck, String, P]): SseCheck =
+  implicit def validatorCheckBuilder2SseCheck[A, P, X](
+      validatorCheckBuilder: ValidatorCheckBuilder[A, P, X]
+  )(implicit materializer: CheckMaterializer[A, SseCheck, String, P]): SseCheck =
     validatorCheckBuilder.exists
 
-  implicit def findCheckBuilder2SseCheck[A, P, X](findCheckBuilder: FindCheckBuilder[A, P, X])(implicit materializer: CheckMaterializer[A, SseCheck, String, P]): SseCheck =
+  implicit def findCheckBuilder2SseCheck[A, P, X](
+      findCheckBuilder: FindCheckBuilder[A, P, X]
+  )(implicit materializer: CheckMaterializer[A, SseCheck, String, P]): SseCheck =
     findCheckBuilder.find.exists
 
-  implicit def sseJsonPathCheckMaterializer(implicit jsonParsers: JsonParsers) = new SseJsonPathCheckMaterializer(jsonParsers)
+  implicit def sseJsonPathCheckMaterializer(implicit jsonParsers: JsonParsers): CheckMaterializer[JsonPathCheckType, SseCheck, String, JsonNode] =
+    SseCheckMaterializer.jsonPath(jsonParsers)
 
-  implicit val sseRegexCheckMaterializer = SseRegexCheckMaterializer
+  implicit def sseJmesPathCheckMaterializer(implicit jsonParsers: JsonParsers): CheckMaterializer[JmesPathCheckType, SseCheck, String, JsonNode] =
+    SseCheckMaterializer.jmesPath(jsonParsers)
 
-  implicit val sseSubstringCheckMaterializer = SseSubstringCheckMaterializer
+  implicit val sseRegexCheckMaterializer: CheckMaterializer[RegexCheckType, SseCheck, String, String] = SseCheckMaterializer.Regex
+
+  implicit val sseSubstringCheckMaterializer: CheckMaterializer[SubstringCheckType, SseCheck, String, String] =
+    SseCheckMaterializer.Substring
+
+  implicit val sseBodyStringCheckMaterializer: CheckMaterializer[BodyStringCheckType, SseCheck, String, String] =
+    SseCheckMaterializer.BodyString
 }

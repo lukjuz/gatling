@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package io.gatling
 import java.nio.charset.Charset
 import java.security.MessageDigest
 
+import io.gatling.commons.util.Hex.toHexString
 import io.gatling.commons.util.StringHelper._
 
 package object charts {
@@ -39,7 +40,7 @@ package object charts {
 
       val md = MessageDigest.getInstance("md5")
       md.update(trimmed.getBytes(charset))
-      trimmed.clean.take(15) + "-" + bytes2Hex(md.digest).take(5)
+      trimmed.clean.take(15) + "-" + toHexString(md.digest).take(5)
     }
 
     def toRequestFileName(charset: Charset) = s"req_${toFileName(charset)}"

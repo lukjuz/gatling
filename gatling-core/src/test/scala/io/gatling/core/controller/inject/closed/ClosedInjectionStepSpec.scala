@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,11 @@
 
 package io.gatling.core.controller.inject.closed
 
-import io.gatling.BaseSpec
-
 import scala.concurrent.duration._
 
-class ClosedInjectionStepSpec extends BaseSpec with MetaClosedInjectionSupport {
+import io.gatling.BaseSpec
+
+class ClosedInjectionStepSpec extends BaseSpec {
 
   "ConstantConcurrentNumberInjection" should "return the correct number of users target" in {
     val step = ConstantConcurrentNumberInjection(5, 2 second)
@@ -39,56 +39,67 @@ class ClosedInjectionStepSpec extends BaseSpec with MetaClosedInjectionSupport {
     step.valueAt(5 seconds) shouldBe 10
   }
 
-  "getInjectionSteps" should "produce the expected injection profile with ramps and starting users" in {
-    val steps = IncreasingConcurrentUsersProfile(
+  it should "inject once a full user is reached" in {
+    val step = RampConcurrentNumberInjection(1, 100, 60 * 99 second)
+    step.valueAt(0 seconds) shouldBe 1
+    step.valueAt(30 seconds) shouldBe 1
+    step.valueAt(60 seconds) shouldBe 2
+  }
+
+  "composite.injectionSteps" should "produce the expected injection profile with starting users and with ramps" in {
+    val steps = IncreasingConcurrentUsersCompositeStep(
       concurrentUsers = 10,
       nbOfSteps = 5,
-      duration = 10 seconds,
+      levelDuration = 10 seconds,
       startingUsers = 5,
       rampDuration = 20 seconds
-    ).getInjectionSteps.toSeq
+    ).composite.injectionSteps
 
-    val expected = Seq(
-      ConstantConcurrentNumberInjection(5, 10 seconds), RampConcurrentNumberInjection(5, 15, 20 seconds),
-      ConstantConcurrentNumberInjection(15, 10 seconds), RampConcurrentNumberInjection(15, 25, 20 seconds),
-      ConstantConcurrentNumberInjection(25, 10 seconds), RampConcurrentNumberInjection(25, 35, 20 seconds),
-      ConstantConcurrentNumberInjection(35, 10 seconds), RampConcurrentNumberInjection(35, 45, 20 seconds),
+    val expected = List(
+      ConstantConcurrentNumberInjection(5, 10 seconds),
+      RampConcurrentNumberInjection(5, 15, 20 seconds),
+      ConstantConcurrentNumberInjection(15, 10 seconds),
+      RampConcurrentNumberInjection(15, 25, 20 seconds),
+      ConstantConcurrentNumberInjection(25, 10 seconds),
+      RampConcurrentNumberInjection(25, 35, 20 seconds),
+      ConstantConcurrentNumberInjection(35, 10 seconds),
+      RampConcurrentNumberInjection(35, 45, 20 seconds),
       ConstantConcurrentNumberInjection(45, 10 seconds)
     )
 
     steps.shouldBe(expected)
   }
 
-  it should "produce the expected injection profile without starting users and ramp" in {
-    val steps = IncreasingConcurrentUsersProfile(
+  it should "produce the expected injection profile without starting users and without ramps" in {
+    val steps = IncreasingConcurrentUsersCompositeStep(
       concurrentUsers = 10,
       nbOfSteps = 5,
-      duration = 10 seconds,
+      levelDuration = 10 seconds,
       startingUsers = 0,
       rampDuration = Duration.Zero
-    ).getInjectionSteps.toSeq
+    ).composite.injectionSteps
 
-    val expected = Seq(
+    val expected = List(
+      ConstantConcurrentNumberInjection(0, 10 seconds),
       ConstantConcurrentNumberInjection(10, 10 seconds),
       ConstantConcurrentNumberInjection(20, 10 seconds),
       ConstantConcurrentNumberInjection(30, 10 seconds),
-      ConstantConcurrentNumberInjection(40, 10 seconds),
-      ConstantConcurrentNumberInjection(50, 10 seconds)
+      ConstantConcurrentNumberInjection(40, 10 seconds)
     )
 
     steps.shouldBe(expected)
   }
 
-  it should "produce the expected injection profile with starting users and without ramp" in {
-    val steps = IncreasingConcurrentUsersProfile(
+  it should "produce the expected injection profile with starting users and without ramps" in {
+    val steps = IncreasingConcurrentUsersCompositeStep(
       concurrentUsers = 10,
       nbOfSteps = 5,
-      duration = 10 seconds,
+      levelDuration = 10 seconds,
       startingUsers = 5,
       rampDuration = Duration.Zero
-    ).getInjectionSteps.toSeq
+    ).composite.injectionSteps
 
-    val expected = Seq(
+    val expected = List(
       ConstantConcurrentNumberInjection(5, 10 seconds),
       ConstantConcurrentNumberInjection(15, 10 seconds),
       ConstantConcurrentNumberInjection(25, 10 seconds),
@@ -100,19 +111,24 @@ class ClosedInjectionStepSpec extends BaseSpec with MetaClosedInjectionSupport {
   }
 
   it should "produce the expected injection profile without starting users and with ramps" in {
-    val steps = IncreasingConcurrentUsersProfile(
+    val steps = IncreasingConcurrentUsersCompositeStep(
       concurrentUsers = 10,
       nbOfSteps = 5,
-      duration = 10 seconds,
+      levelDuration = 10 seconds,
       startingUsers = 0,
       rampDuration = 80 seconds
-    ).getInjectionSteps.toSeq
+    ).composite.injectionSteps
 
     val expected = Seq(
-      ConstantConcurrentNumberInjection(10, 10 seconds), RampConcurrentNumberInjection(10, 20, 80 seconds),
-      ConstantConcurrentNumberInjection(20, 10 seconds), RampConcurrentNumberInjection(20, 30, 80 seconds),
-      ConstantConcurrentNumberInjection(30, 10 seconds), RampConcurrentNumberInjection(30, 40, 80 seconds),
-      ConstantConcurrentNumberInjection(40, 10 seconds), RampConcurrentNumberInjection(40, 50, 80 seconds),
+      RampConcurrentNumberInjection(0, 10, 80 seconds),
+      ConstantConcurrentNumberInjection(10, 10 seconds),
+      RampConcurrentNumberInjection(10, 20, 80 seconds),
+      ConstantConcurrentNumberInjection(20, 10 seconds),
+      RampConcurrentNumberInjection(20, 30, 80 seconds),
+      ConstantConcurrentNumberInjection(30, 10 seconds),
+      RampConcurrentNumberInjection(30, 40, 80 seconds),
+      ConstantConcurrentNumberInjection(40, 10 seconds),
+      RampConcurrentNumberInjection(40, 50, 80 seconds),
       ConstantConcurrentNumberInjection(50, 10 seconds)
     )
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,10 @@
 
 package io.gatling.core.stats.writer
 
-import akka.actor.FSM
 import io.gatling.core.akka.BaseActor
 import io.gatling.core.config.GatlingConfiguration
+
+import akka.actor.FSM
 
 private[writer] trait DataWriterFSM extends BaseActor with FSM[DataWriterState, DataWriterData]
 
@@ -29,4 +30,4 @@ private[writer] case object Terminated extends DataWriterState
 
 trait DataWriterData
 private[writer] case object NoData extends DataWriterData
-case class InitData(configuration: GatlingConfiguration) extends DataWriterData
+final case class InitData(configuration: GatlingConfiguration) extends DataWriterData

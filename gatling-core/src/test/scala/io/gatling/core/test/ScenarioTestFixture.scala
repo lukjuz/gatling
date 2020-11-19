@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,14 +28,14 @@ import io.gatling.commons.util.DefaultClock
 import io.gatling.core.CoreComponents
 import io.gatling.core.action.Action
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.controller.throttle.Throttler
 import io.gatling.core.pause.Constant
-import io.gatling.core.protocol.{ ProtocolComponentsRegistries, Protocols }
+import io.gatling.core.protocol.ProtocolComponentsRegistries
 import io.gatling.core.structure._
 
 import akka.actor.{ ActorRef, ActorSystem }
+import io.netty.channel.EventLoopGroup
 
-case class ScenarioTestContext(scenarioContext: ScenarioContext, statsEngine: LoggingStatsEngine, exitAction: BlockingExitAction) {
+final case class ScenarioTestContext(scenarioContext: ScenarioContext, statsEngine: LoggingStatsEngine, exitAction: BlockingExitAction) {
 
   private[test] val expectations = new ArrayBuffer[PartialFunction[Any, Unit]]
 }
@@ -70,10 +70,11 @@ trait ScenarioTestFixture extends BaseSpec {
 
     try {
       val statsEngine = new LoggingStatsEngine
-      val coreComponents = CoreComponents(system, mock[ActorRef], mock[Throttler], statsEngine, new DefaultClock, mock[Action], configuration)
-      val protocolComponentsRegistry = new ProtocolComponentsRegistries(coreComponents, Protocols(Nil)).scenarioRegistry(Protocols(Nil))
-      val scenarioContext = ScenarioContext(coreComponents, protocolComponentsRegistry, Constant, throttled = false)
-      val exitAction = new BlockingExitAction()
+      val coreComponents =
+        new CoreComponents(system, mock[EventLoopGroup], mock[ActorRef], None, statsEngine, new DefaultClock, mock[Action], configuration)
+      val protocolComponentsRegistry = new ProtocolComponentsRegistries(coreComponents, Map.empty).scenarioRegistry(Map.empty)
+      val scenarioContext = new ScenarioContext(coreComponents, protocolComponentsRegistry, Constant, throttled = false)
+      val exitAction = new BlockingExitAction(1)
       val ctx = ScenarioTestContext(scenarioContext, statsEngine, exitAction)
 
       f(ctx)

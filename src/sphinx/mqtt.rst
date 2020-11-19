@@ -6,6 +6,10 @@ MQTT
 
 MQTT support is only available in `FrontLine <https://gatling.io/gatling-frontline/>`__.
 
+Jar published in Gatling OSS only contains noop stubs.
+
+It only supports MQTT 3.1 and 3.1.1. More recent versions are not currently supported.
+
 Prerequisites
 =============
 
@@ -13,7 +17,7 @@ Gatling FrontLine MQTT DSL is not imported by default.
 
 One has to manually add the following imports::
 
-  import io.gatling.frontline.mqtt.Predef._
+  import io.gatling.mqtt.Predef._
 
 MQTT Protocol
 =============
@@ -106,6 +110,13 @@ You can use ``waitForMessages`` and block for all pending non-blocking checks::
 
   exec(waitForMessages.timeout(100 milliseconds))
 
+.. mqtt-conf:
+
+MQTT configuration
+==================
+
+MQTT support honors the ssl and netty configurations from ``gatling.conf``.
+
 Example
 =======
 
@@ -113,7 +124,7 @@ Example
 
   import scala.concurrent.duration._
   import io.gatling.core.Predef._
-  import io.gatling.frontline.mqtt.Predef._
+  import io.gatling.mqtt.Predef._
 
   class MqttSample {
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package io.gatling.http.action.ws
 import scala.concurrent.duration.FiniteDuration
 
 import io.gatling.core.action.Action
+import io.gatling.core.session._
 import io.gatling.core.structure.{ ChainBuilder, ScenarioContext }
 import io.gatling.http.action.HttpActionBuilder
 import io.gatling.http.check.ws.{ WsFrameCheck, WsFrameCheckSequence }
@@ -26,21 +27,24 @@ import io.gatling.http.request.builder.ws.WsConnectRequestBuilder
 
 import com.softwaremill.quicklens._
 
-case class WsConnectBuilder(
-    requestBuilder:   WsConnectRequestBuilder,
-    checkSequences:   List[WsFrameCheckSequence[WsFrameCheck]],
+final case class WsConnectBuilder(
+    requestBuilder: WsConnectRequestBuilder,
+    checkSequences: List[WsFrameCheckSequenceBuilder[WsFrameCheck]],
     onConnectedChain: Option[ChainBuilder]
 ) extends HttpActionBuilder {
 
   def await(timeout: FiniteDuration)(checks: WsFrameCheck*): WsConnectBuilder =
-    this.modify(_.checkSequences).using(_ ::: List(WsFrameCheckSequence(timeout, checks.toList)))
+    await(timeout.expressionSuccess)(checks: _*)
+
+  def await(timeout: Expression[FiniteDuration])(checks: WsFrameCheck*): WsConnectBuilder =
+    this.modify(_.checkSequences).using(_ :+ WsFrameCheckSequenceBuilder(timeout, checks.toList))
 
   def onConnected(chain: ChainBuilder): WsConnectBuilder = copy(onConnectedChain = Some(chain))
 
   override def build(ctx: ScenarioContext, next: Action): Action = {
     import ctx._
     val httpComponents = lookUpHttpComponents(protocolComponentsRegistry)
-    val request = requestBuilder.build(httpComponents)
+    val request = requestBuilder.build(httpComponents, coreComponents.configuration)
 
     val onConnected = onConnectedChain.map { chain =>
       chain.exec(OnConnectedChainEndActionBuilder).build(ctx, next)
@@ -49,11 +53,11 @@ case class WsConnectBuilder(
     new WsConnect(
       requestBuilder.commonAttributes.requestName,
       requestBuilder.wsName,
-      requestBuilder.subprotocol,
       request,
       checkSequences,
       onConnected,
-      httpComponents = httpComponents,
+      coreComponents,
+      httpComponents,
       next = next
     )
   }

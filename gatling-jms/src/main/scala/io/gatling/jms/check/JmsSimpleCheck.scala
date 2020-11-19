@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 
 package io.gatling.jms.check
 
-import javax.jms.Message
 import java.util.{ Map => JMap }
+import javax.jms.Message
 
 import io.gatling.commons.validation._
 import io.gatling.core.check.CheckResult
@@ -29,8 +29,8 @@ object JmsSimpleCheck {
   private val JmsSimpleCheckFailure = "JMS check failed".failure
 }
 
-case class JmsSimpleCheck(func: Message => Boolean) extends JmsCheck {
-  override def check(response: Message, session: Session)(implicit cache: JMap[Any, Any]): Validation[CheckResult] =
+final class JmsSimpleCheck(func: Message => Boolean) extends JmsCheck {
+  override def check(response: Message, session: Session, preparedCache: JMap[Any, Any]): Validation[CheckResult] =
     if (func(response)) {
       CheckResult.NoopCheckResultSuccess
     } else {

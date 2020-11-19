@@ -121,6 +121,24 @@ Here are some examples:
 
 .. note:: Headers can also be defined on the ``HttpProtocol``.
 
+.. _http-request-ignore-protocol-headers:
+
+For a given request, you can also disable common headers that were defined on the ``HttpProtocol`` with ``ignoreProtocolHeaders``:
+
+.. includecode:: code/HttpRequestSample.scala#ignoreProtocolHeaders
+
+.. _http-request-timeout:
+
+Request Timeout
+===============
+
+The default request timeout is controlled by the ```gatling.http.requestTimeout`` configuration parameter.
+
+However, you might want to use ``requestTimeout(timeout: FiniteDuration)``
+to override the global value for a specific request, typically a long file upload or download.
+
+.. includecode:: code/HttpRequestSample.scala#requestTimeout
+
 .. _http-request-signature:
 
 Signature Calculator
@@ -206,11 +224,11 @@ You can add checks on a request:
 
 For more information, see the :ref:`HTTP Checks reference section <http-check>`.
 
-.. _http-request-ignore-default-checks:
+.. _http-request-ignore-protocol-checks:
 
-For a given request, you can also disable common checks that were defined on the ``HttpProtocol`` with ``ignoreDefaultChecks``:
+For a given request, you can also disable common checks that were defined on the ``HttpProtocol`` with ``ignoreProtocolChecks``:
 
-.. includecode:: code/HttpRequestSample.scala#ignoreDefaultChecks
+.. includecode:: code/HttpRequestSample.scala#ignoreProtocolChecks
 
 FollowRedirect
 ==============
@@ -376,12 +394,16 @@ Here, you can pass a Stream.
 
 .. _http-request-body-pebble:
 
-* ``PebbleFileBody(path: Expression[String])``
+* ``PebbleStringBody(template: String)`` and ``PebbleFileBody(path: Expression[String])``
 
 Gatling Expression Language is definitively the most optimized templating engine for Gatling, in terms of raw performance. However, it's a bit limited in terms of logic you can implement in there.
 If you want loops and conditional blocks, you can use Gatling's `Pebble <https://github.com/PebbleTemplates/pebble>`_ based templating engine.
 
 .. includecode:: code/HttpRequestSample.scala#PebbleBody
+
+.. note:: Template inheritance is only available when using ``PebbleFileBody``.
+
+.. note:: You can register Pebble ``Extensions``s with ``registerPebbleExtensions(extensions: Extension*)``. This can only be do once, and must be done prior to loading any Pebble template.
 
 .. note:: When you pass a path, Gatling searches first for an absolute path on the filesystem, then in the classpath.
 

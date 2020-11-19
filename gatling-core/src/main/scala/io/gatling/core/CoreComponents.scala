@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,13 +23,15 @@ import io.gatling.core.controller.throttle.Throttler
 import io.gatling.core.stats.StatsEngine
 
 import _root_.akka.actor.{ ActorRef, ActorSystem }
+import io.netty.channel.EventLoopGroup
 
-case class CoreComponents(
-    actorSystem:   ActorSystem,
-    controller:    ActorRef,
-    throttler:     Throttler,
-    statsEngine:   StatsEngine,
-    clock:         Clock,
-    exit:          Action,
-    configuration: GatlingConfiguration
+final class CoreComponents(
+    val actorSystem: ActorSystem,
+    val eventLoopGroup: EventLoopGroup,
+    val controller: ActorRef,
+    val throttler: Option[Throttler],
+    val statsEngine: StatsEngine,
+    val clock: Clock,
+    val exit: Action,
+    val configuration: GatlingConfiguration
 )

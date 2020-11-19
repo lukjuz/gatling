@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ private[recorder] object ConfigKeys {
     val RemoveCacheHeaders = "recorder.http.removeCacheHeaders"
     val CheckResponseBodies = "recorder.http.checkResponseBodies"
     val UseSimulationAsPrefix = "recorder.http.useSimulationAsPrefix"
+    val UseMethodAndUriAsPostfix = "recorder.http.useMethodAndUriAsPostfix"
   }
   object proxy {
     val Port = "recorder.proxy.port"

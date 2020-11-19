@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,8 +21,6 @@ import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-import java.net.InetSocketAddress;
-
 public interface HttpListener {
 
   void onHttpResponse(HttpResponseStatus status, HttpHeaders headers);
@@ -33,17 +31,15 @@ public interface HttpListener {
 
   default void onSend() {}
 
-  default void onTcpConnectAttempt(InetSocketAddress remoteAddress) {}
-
-  default void onTcpConnectSuccess(InetSocketAddress remoteAddress) {}
-
-  default void onTcpConnectFailure(InetSocketAddress remoteAddress, Throwable cause) {}
-
-  default void onTlsHandshakeAttempt() {}
-
-  default void onTlsHandshakeSuccess() {}
-
-  default void onTlsHandshakeFailure(Throwable cause) {}
+  //[fl]
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //[fl]
 
   default void onProtocolAwareness(boolean isHttp2) {}
 

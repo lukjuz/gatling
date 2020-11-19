@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,9 @@ import akka.actor.ActorSystem
  * @param counter the name of the counter used to keep track of the run state. Typically this would be random, but
  *                can be set explicitly if needed
  */
-class Pace(intervalExpr: Expression[Duration], counter: String, actorSystem: ActorSystem, val statsEngine: StatsEngine, val clock: Clock, val next: Action) extends ExitableAction with NameGen {
+class Pace(intervalExpr: Expression[Duration], counter: String, actorSystem: ActorSystem, val statsEngine: StatsEngine, val clock: Clock, val next: Action)
+    extends ExitableAction
+    with NameGen {
 
   import actorSystem._
 
@@ -49,7 +51,7 @@ class Pace(intervalExpr: Expression[Duration], counter: String, actorSystem: Act
    * @return nothing
    */
   override def execute(session: Session): Unit = recover(session) {
-    intervalExpr(session) map { interval =>
+    intervalExpr(session).map { interval =>
       val now = clock.nowMillis
       val intervalMillis = interval.toMillis
       session(counter).asOption[Long] match {

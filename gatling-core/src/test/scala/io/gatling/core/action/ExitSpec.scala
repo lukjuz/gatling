@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,8 @@ package io.gatling.core.action
 
 import io.gatling.AkkaSpec
 import io.gatling.commons.util.DefaultClock
-import io.gatling.core.session.Session
-import io.gatling.core.stats.message.End
-import io.gatling.core.stats.writer.UserMessage
+import io.gatling.core.session.SessionSpec.EmptySession
+import io.gatling.core.stats.writer.UserEndMessage
 
 class ExitSpec extends AkkaSpec {
 
@@ -31,13 +30,11 @@ class ExitSpec extends AkkaSpec {
 
     var hasTerminated = false
 
-    val session = Session("scenario", 0, clock.nowMillis, onExit = _ => hasTerminated = true)
-
+    val session = EmptySession.copy(onExit = _ => hasTerminated = true)
     exit ! session
 
     hasTerminated shouldBe true
-    val userMessage = expectMsgType[UserMessage]
-    userMessage.session shouldBe session
-    userMessage.event shouldBe End
+    val userMessage = expectMsgType[UserEndMessage]
+    userMessage.scenario shouldBe session.scenario
   }
 }

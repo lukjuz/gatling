@@ -16,7 +16,7 @@ You can configure assertions and protocols with these two methods:
 Injection
 =========
 
-The definition of the injection profile of users is done with the ``inject`` method. This method takes as argument a sequence of injection steps that will be processed sequentially.
+The definition of the injection profile of users is done with the ``inject`` method. This method takes as an argument a sequence of injection steps that will be processed sequentially.
 
 Open vs Closed Workload Models
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -33,17 +33,17 @@ At full capacity, a new user can effectively enter the system only once another 
 
 Typical systems that behave this way are:
 
-* call center when all operators are busy
-* ticketing websites where users get placed into a queue when system is at full capacity
+* call center where all operators are busy
+* ticketing websites where users get placed into a queue when the system is at full capacity
 
-On the contrary, open system have no control over the number concurrent users: users keep on arriving even though applications has some trouble serving them.
+On the contrary, open systems have no control over the number of concurrent users: users keep on arriving even though applications have trouble serving them.
 Most websites behave this way.
 
-If you're using a closed workload model in your load tests while your system actually is a open one, your test is broken and you're testing some different imaginary behavior.
-In such case, when system under test starts to has some trouble, response time will increase, journey time will become longer, so number of concurrent users will increase
+If you're using a closed workload model in your load tests while your system actually is an open one, your test is broken and you're testing some different imaginary behavior.
+In such case, when the system under test starts to have some trouble, response times will increase, journey time will become longer, so number of concurrent users will increase
 and injector will slow down to match the imaginary cap you've set.
 
-You can read more about open and closed models `here <http://repository.cmu.edu/cgi/viewcontent.cgi?article=1872&context=compsci>`_.
+You can read more about open and closed models `here <https://www.usenix.org/legacy/event/nsdi06/tech/full_papers/schroeder/schroeder.pdf>`_ and on `our blog <https://gatling.io/2018/10/04/gatling-3-closed-workload-model-support/>`_.
 
 .. warning::
 
@@ -60,7 +60,7 @@ The building blocks for profile injection the way you want are:
 
 #. ``nothingFor(duration)``: Pause for a given duration.
 #. ``atOnceUsers(nbUsers)``: Injects a given number of users at once.
-#. ``rampUsers(nbUsers) during(duration)``: Injects a given number of users with a linear ramp over a given duration.
+#. ``rampUsers(nbUsers) during(duration)``: Injects a given number of users distributed evenly on a time window of a given duration.
 #. ``constantUsersPerSec(rate) during(duration)``: Injects users at a constant rate, defined in users per second, during a given duration. Users will be injected at regular intervals.
 #. ``constantUsersPerSec(rate) during(duration) randomized``: Injects users at a constant rate, defined in users per second, during a given duration. Users will be injected at randomized intervals.
 #. ``rampUsersPerSec(rate1) to (rate2) during(duration)``: Injects users from starting rate to target rate, defined in users per second, during a given duration. Users will be injected at regular intervals.
@@ -80,18 +80,18 @@ Closed Model
 
 .. warning::
 
-  Then, you have to understand that Gatling's default behavior is mimic human users with browsers, so each virtual user has its own connections.
-  If you have a high creation rate of users with a short lifespan, you'll end up opening and closing tons of connections every seconds.
+  You have to understand that Gatling's default behavior is to mimic human users with browsers so, each virtual user has its own connections.
+  If you have a high creation rate of users with a short lifespan, you'll end up opening and closing tons of connections every second.
   As a consequence, you might run out of resources (such as ephemeral ports, because your OS can't recycle them fast enough).
-  This behavior makes perfect sense when the load you're modeling is internet traffic. Then, you might consider scala out, for example with FrontLine, our Enterprise product.
+  This behavior makes perfect sense when the load you're modeling is internet traffic. You then might consider scaling out, for example with FrontLine, our Enterprise product.
 
-  If you're actually trying to model a small fleet of webservice clients with connection pools, you might want to tune Gatling's behavior and :ref:`share the connection pool amongst virtual users <http-protocol-connection-sharing>`.
+  If you're actually trying to model a small fleet of webservice clients with connection pools, you might want to fine-tune Gatling's behavior and :ref:`share the connection pool amongst virtual users <http-protocol-connection-sharing>`.
 
 .. warning::
 
   Setting a smaller number of concurrent users won't force existing users to abort. The only way for users to terminate is to complete their scenario.
 
-.. _simulation-setup-pause:
+.. _simulation-inject-meta:
 
 Meta DSL
 ^^^^^^^^
@@ -110,9 +110,45 @@ But there is now an alternative using the meta DSL.
 
 ``incrementUsersPerSec`` is for open workload and ``incrementConcurrentUsers`` is for closed workload (users/sec vs concurrent users)
 
-``separatedByRampsLasting`` and ``startingFrom`` are both optionals.
-If you don't precise a ramp, the test will jump from one level to another as soon as it is finished.
-If you don't precise an amount of starting users the test will start at 0 concurrent user or 0 user per sec and will go to the next step right away.
+``separatedByRampsLasting`` and ``startingFrom`` are both optional.
+If you don't specify a ramp, the test will jump from one level to another as soon as it is finished.
+If you don't specify the number of starting users the test will start at 0 concurrent user or 0 user per sec and will go to the next step right away.
+
+.. _simulation-inject-concurrent:
+
+Concurrent Scenarios
+^^^^^^^^^^^^^^^^^^^^
+
+You can configure multiple scenarios in the same ``setUp`` block to started at the same time and executed concurrently.
+
+.. includecode:: code/SimulationSetupSample.scala#multiple
+
+.. _simulation-inject-seq:
+
+Sequential Scenarios
+^^^^^^^^^^^^^^^^^^^^
+
+It's also possible with ``andThen`` to chain scenarios so that children scenarios starts once all the users in the parent scenario terminate.
+
+.. includecode:: code/SimulationSetupSample.scala#andThen
+
+
+.. _no-shard:
+
+Disabling FrontLine Load Sharding
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default, FrontLine will distribute your injection profile amongst all injectors when running a distributed test from multiple node.
+
+This might not be the desirable behavior, typically when running a first initial scenario with one single user in order to fetch some auth token to be used by the actual scenario.
+Indeed, only one node would run this user, leaving the other nodes without an initialized token.
+
+You can user ``noShard`` to disable load sharding. In this case, all the node will use the injection and throttling profiles as defined in the Simulation.
+
+.. includecode:: code/SimulationSetupSample.scala#noShard
+
+
+.. _simulation-setup-pause:
 
 Global Pause configuration
 ==========================
@@ -140,7 +176,7 @@ If you want to reason in terms of requests per second and not in terms of concur
 consider using constantUsersPerSec(...) to set the arrival rate of users, and therefore requests,
 without need for throttling as well as it will be redundant in most cases.
 
-If this is not sufficient for some reason then Gatling supports throttling with the ``throttle`` method.
+If this is not sufficient for some reason, then Gatling supports throttling with the ``throttle`` method.
 
 Throttling is implemented per protocol with support for regular HTTP and JMS.
 
@@ -169,7 +205,8 @@ The building block for the throttling are:
 Maximum duration
 ================
 
-Finally, you can configure the maximum duration of your simulation with the method ``maxDuration``.
+Finally, with ``maxDuration`` you can force your run to terminate based on a duration limit, even though some virtual users are still running.
+
 It is useful if you need to bound the duration of your simulation when you can't predict it.
 
 .. includecode:: code/SimulationSetupSample.scala#max-duration

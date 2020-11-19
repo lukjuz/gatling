@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,22 +18,22 @@ package io.gatling.http.check.checksum
 
 import io.gatling.commons.validation._
 import io.gatling.core.check._
-import io.gatling.core.check.extractor.checksum.{ Md5CheckType, Sha1CheckType }
+import io.gatling.core.check.checksum.{ Md5CheckType, Sha1CheckType }
 import io.gatling.http.check.HttpCheck
+import io.gatling.http.check.HttpCheckScope.Chunks
 import io.gatling.http.response.Response
 
 object HttpChecksumCheckMaterializer {
 
-  val Md5 = new HttpChecksumCheckMaterializer[Md5CheckType]("MD5")
-  val Sha1 = new HttpChecksumCheckMaterializer[Sha1CheckType]("SHA1")
+  val Md5: CheckMaterializer[Md5CheckType, HttpCheck, Response, String] = new HttpChecksumCheckMaterializer[Md5CheckType]("MD5")
+  val Sha1: CheckMaterializer[Sha1CheckType, HttpCheck, Response, String] = new HttpChecksumCheckMaterializer[Sha1CheckType]("SHA1")
 }
 
-class HttpChecksumCheckMaterializer[T](algorithm: String) extends CheckMaterializer[T, HttpCheck, Response, String] {
-
-  override val specializer: Specializer[HttpCheck, Response] = new ChecksumCheck(algorithm, _)
+class HttpChecksumCheckMaterializer[T](algorithm: String)
+    extends CheckMaterializer[T, HttpCheck, Response, String](check => HttpCheck(new ChecksumCheck(check, algorithm), Chunks)) {
 
   override val preparer: Preparer[Response, String] = _.checksum(algorithm) match {
     case Some(chk) => chk.success
-    case None      => s"$algorithm checksum wasn't computed".failure
+    case _         => s"$algorithm checksum wasn't computed".failure
   }
 }

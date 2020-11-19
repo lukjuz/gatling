@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,17 +20,18 @@ import java.net.InetSocketAddress
 
 import scala.concurrent.duration._
 
-import io.gatling.commons.util.{ Clock, Retry }
+import io.gatling.commons.util.Clock
 import io.gatling.graphite.message.GraphiteMetrics
 
 import akka.io.{ IO, Tcp }
 
 private[graphite] class TcpSender(
-    remote:      InetSocketAddress,
-    maxRetries:  Int,
+    remote: InetSocketAddress,
+    maxRetries: Int,
     retryWindow: FiniteDuration,
-    clock:       Clock
-) extends MetricsSender with TcpSenderFSM {
+    clock: Clock
+) extends MetricsSender
+    with TcpSenderFSM {
 
   import Tcp._
 
@@ -104,4 +105,22 @@ private[graphite] class TcpSender(
   def stopIfLimitReachedOrContinueWith(failures: Retry)(continueState: this.State) =
     if (failures.isLimitReached) goto(RetriesExhausted) using NoData
     else continueState
+}
+
+private[sender] class Retry private (maxRetryLimit: Int, retryWindow: FiniteDuration, retries: List[Long], clock: Clock) {
+
+  def this(maxRetryLimit: Int, retryWindow: FiniteDuration, clock: Clock) =
+    this(maxRetryLimit, retryWindow, Nil, clock)
+
+  private def copyWithNewRetries(retries: List[Long]) =
+    new Retry(maxRetryLimit, retryWindow, retries, clock)
+
+  def newRetry: Retry = copyWithNewRetries(clock.nowMillis :: cleanupOldRetries)
+
+  def isLimitReached = cleanupOldRetries.length >= maxRetryLimit
+
+  private def cleanupOldRetries: List[Long] = {
+    val now = clock.nowMillis
+    retries.filterNot(_ < (now - retryWindow.toMillis))
+  }
 }

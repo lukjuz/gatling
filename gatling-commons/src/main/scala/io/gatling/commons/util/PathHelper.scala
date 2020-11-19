@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,7 @@
 
 package io.gatling.commons.util
 
-import java.io.File
-import java.net.{ URI, URL }
+import java.io._
 import java.nio.charset.Charset
 import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
@@ -25,39 +24,38 @@ import java.nio.file.attribute.BasicFileAttributes
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 
+final case class CachingPath(path: Path) {
+
+  override def toString: String = path.toString
+
+  lazy val filename: String = path.getFileName.toString
+}
+
 object PathHelper {
-
-  implicit def string2path(pathString: String): Path = Paths.get(pathString)
-
-  implicit def uri2path(uri: URI): Path = Paths.get(uri)
-
-  implicit def url2path(url: URL): Path = Paths.get(url.toURI)
-
-  implicit def segments2path(segments: Seq[String]): Path = Paths.get(segments.head, segments.tail: _*)
 
   implicit class RichPath(val path: Path) extends AnyVal {
 
-    def /(pathString: String) = path.resolve(pathString)
+    def /(pathString: String): Path = path.resolve(pathString)
 
-    def /(other: Path) = path.resolve(other)
+    def /(other: Path): Path = path.resolve(other)
 
-    def filename = path.getFileName.toString
+    def filename: String = path.getFileName.toString
 
-    def exists = Files.exists(path)
+    def exists: Boolean = Files.exists(path)
 
-    def mkdirs = Files.createDirectories(path)
+    def mkdirs(): Path = Files.createDirectories(path)
 
-    def touch = Files.createFile(path)
+    def createFile(): Path = Files.createFile(path)
 
-    def delete() = Files.delete(path)
+    def delete(): Unit = Files.delete(path)
 
-    def inputStream = Files.newInputStream(path)
+    def inputStream: InputStream = Files.newInputStream(path)
 
-    def outputStream = Files.newOutputStream(path)
+    def outputStream: OutputStream = Files.newOutputStream(path)
 
-    def isFile = Files.isRegularFile(path)
+    def isFile: Boolean = Files.isRegularFile(path)
 
-    def isDirectory = Files.isDirectory(path)
+    def isDirectory: Boolean = Files.isDirectory(path)
 
     def segments: List[Path] = path.iterator.asScala.toList
 
@@ -77,9 +75,9 @@ object PathHelper {
 
     def ifFile[T](f: File => T): Option[T] = if (isFile) Some(f(path.toFile)) else None
 
-    def writer(charset: Charset) = Files.newBufferedWriter(path, charset)
+    def writer(charset: Charset): Writer = Files.newBufferedWriter(path, charset)
 
-    def copyTo(other: Path, options: CopyOption*) = Files.copy(path, other, options: _*)
+    def copyTo(other: Path, options: CopyOption*): Path = Files.copy(path, other, options: _*)
 
     def extension: String = {
       val pathString = path.toString
@@ -87,42 +85,47 @@ object PathHelper {
       if (dotIndex == -1) "" else pathString.substring(dotIndex + 1)
     }
 
-    def hasExtension(ext: String, exts: String*) = {
-      val lower = extension.toLowerCase
-      ext.toLowerCase == lower || exts.exists(_.toLowerCase == lower)
-    }
+    def hasExtension(ext: String): Boolean =
+      extension.equalsIgnoreCase(ext)
 
-    def stripExtension = filename stripSuffix ("." + extension)
+    def stripExtension: String = filename.stripSuffix("." + extension)
 
-    def deepFiles(f: CachingPath => Boolean = _ => true, maxDepth: Int = Int.MaxValue): Seq[CachingPath] =
+    def deepFiles(f: CachingPath => Boolean): Seq[CachingPath] = deepFiles(f, Int.MaxValue)
+    def deepFiles(f: CachingPath => Boolean, maxDepth: Int): Seq[CachingPath] =
       if (path.exists) {
         val acc = new collection.mutable.ArrayBuffer[CachingPath]
-        Files.walkFileTree(path, new SimpleFileVisitor[Path] {
-          override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
-            val cachingPath = CachingPath(file)
-            if (f(cachingPath))
-              acc += cachingPath
-            super.visitFile(path, attrs)
+        Files.walkFileTree(
+          path,
+          new SimpleFileVisitor[Path] {
+            override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
+              val cachingPath = CachingPath(file)
+              if (f(cachingPath))
+                acc += cachingPath
+              super.visitFile(path, attrs)
+            }
           }
-        })
+        )
         acc
       } else {
         Nil
       }
 
-    def files = deepFiles(maxDepth = 1)
+    def files: Seq[CachingPath] = deepFiles(_ => true, maxDepth = 1)
 
-    def deepDirs(f: CachingPath => Boolean = _ => true): Seq[CachingPath] =
+    def deepDirs(f: CachingPath => Boolean): Seq[CachingPath] =
       if (path.exists) {
         val acc = new collection.mutable.ArrayBuffer[CachingPath]
-        Files.walkFileTree(path, new SimpleFileVisitor[Path] {
-          override def preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult = {
-            val cachingPath = CachingPath(dir)
-            if (f(cachingPath))
-              acc += cachingPath
-            super.preVisitDirectory(path, attrs)
+        Files.walkFileTree(
+          path,
+          new SimpleFileVisitor[Path] {
+            override def preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult = {
+              val cachingPath = CachingPath(dir)
+              if (f(cachingPath))
+                acc += cachingPath
+              super.preVisitDirectory(path, attrs)
+            }
           }
-        })
+        )
         acc
       } else {
         Nil

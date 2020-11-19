@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.gatling.http.client;
 
-import io.gatling.http.client.ahc.uri.Uri;
+import io.gatling.http.client.uri.Uri;
 import io.gatling.http.client.body.form.FormUrlEncodedRequestBodyBuilder;
 import io.gatling.http.client.test.DefaultResponse;
 import io.gatling.http.client.test.listener.ResponseAsStringListener;
@@ -41,9 +41,8 @@ public class FormMain {
       params.add(new Param("firstname", "Mickey"));
       params.add(new Param("lastname", "Mouse"));
 
-      Request request = new RequestBuilder(HttpMethod.POST, Uri.create("https://www.w3schools.com/action_page.php"))
+      Request request = client.newRequestBuilder(HttpMethod.POST, Uri.create("https://www.w3schools.com/action_page.php"))
         .setBodyBuilder(new FormUrlEncodedRequestBodyBuilder(params))
-        .setNameResolver(client.getNameResolver())
         .setRequestTimeout(TIMEOUT_SECONDS * 1000)
         .build();
 
@@ -51,7 +50,7 @@ public class FormMain {
       client.execute(request, 0, true, new ResponseAsStringListener() {
         @Override
         public void onComplete() {
-          LOGGER.debug(new DefaultResponse<>(status, headers, responseBody()).toString());
+          LOGGER.info(new DefaultResponse<>(status, headers, responseBody()).toString());
           latch1.countDown();
         }
 

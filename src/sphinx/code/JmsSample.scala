@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,13 @@
  * limitations under the License.
  */
 
-//#imports
-import io.gatling.jms.Predef._
-import javax.jms._
-//#imports
-
 //#example-simulation
+import javax.jms._
+
+import scala.concurrent.duration._
+
 import io.gatling.core.Predef._
 import io.gatling.jms.Predef._
-import javax.jms._
-import scala.concurrent.duration._
 
 class TestJmsDsl extends Simulation {
 
@@ -44,12 +41,14 @@ class TestJmsDsl extends Simulation {
     .usePersistentDeliveryMode
 
   val scn = scenario("JMS DSL test").repeat(1) {
-    exec(jms("req reply testing").requestReply
-      .queue("jmstestq")
-      .textMessage("hello from gatling jms dsl")
-      .property("test_header", "test_value")
-      .jmsType("test_jms_type")
-      .check(simpleCheck(checkBodyTextCorrect)))
+    exec(
+      jms("req reply testing").requestReply
+        .queue("jmstestq")
+        .textMessage("hello from gatling jms dsl")
+        .property("test_header", "test_value")
+        .jmsType("test_jms_type")
+        .check(simpleCheck(checkBodyTextCorrect))
+    )
   }
 
   setUp(scn.inject(rampUsersPerSec(10) to 1000 during (2 minutes)))
@@ -64,3 +63,11 @@ class TestJmsDsl extends Simulation {
   }
 }
 //#example-simulation
+
+class Imports {
+  //#imprts
+  import javax.jms._
+
+  import io.gatling.jms.Predef._
+  //#imprts
+}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.gatling.http.client;
 
-import io.gatling.http.client.ahc.uri.Uri;
+import io.gatling.http.client.uri.Uri;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
@@ -37,8 +37,7 @@ public class WebSocketMain {
   public static void main(String[] args) throws Exception {
     try (GatlingHttpClient client = new GatlingHttpClient(new HttpClientConfig())) {
 
-      Request request = new RequestBuilder(HttpMethod.GET, Uri.create("wss://echo.websocket.org"))
-        .setNameResolver(client.getNameResolver())
+      Request request = client.newRequestBuilder(HttpMethod.GET, Uri.create("wss://echo.websocket.org"))
         .setRequestTimeout(10000)
         .build();
 
@@ -46,35 +45,35 @@ public class WebSocketMain {
       client.execute(request, 0, true, new WebSocketListener() {
           @Override
           public void onWebSocketOpen() {
-            LOGGER.debug(">>>>>>onWebSocketOpen");
+            LOGGER.info(">>>>>>onWebSocketOpen");
             sendFrame(new TextWebSocketFrame("HELLO!!!"));
           }
 
           @Override
           public void onTextFrame(TextWebSocketFrame frame) {
-            LOGGER.debug(">>>>>>onTextFrame " + frame.text());
+            LOGGER.info(">>>>>>onTextFrame " + frame.text());
             sendFrame(new CloseWebSocketFrame());
             latch.countDown();
           }
 
           @Override
           public void onBinaryFrame(BinaryWebSocketFrame frame) {
-            LOGGER.debug(">>>>>>onBinaryFrame");
+            LOGGER.info(">>>>>>onBinaryFrame");
           }
 
           @Override
           public void onPongFrame(PongWebSocketFrame frame) {
-            LOGGER.debug(">>>>>>onPongFrame");
+            LOGGER.info(">>>>>>onPongFrame");
           }
 
           @Override
           public void onCloseFrame(CloseWebSocketFrame frame) {
-            LOGGER.debug(">>>>>>onCloseFrame");
+            LOGGER.info(">>>>>>onCloseFrame");
           }
 
           @Override
           public void onHttpResponse(HttpResponseStatus status, HttpHeaders headers) {
-            LOGGER.debug(">>>>>>onHttpResponse " + status);
+            LOGGER.info(">>>>>>onHttpResponse " + status);
           }
 
           @Override
@@ -83,7 +82,7 @@ public class WebSocketMain {
 
           @Override
           public void onThrowable(Throwable e) {
-            LOGGER.debug(">>>>>>onThrowable");
+            LOGGER.info(">>>>>>onThrowable");
             e.printStackTrace();
             latch.countDown();
           }

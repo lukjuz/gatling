@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,11 +33,11 @@ class FeederSample {
     //#feed-multiple
 
     csv("foo")
-      //#strategies
-      .queue // default behavior: use an Iterator on the underlying sequence
-      .random // randomly pick an entry in the sequence
-      .shuffle // shuffle entries, then behave like queue
-      .circular // go back to the top of the sequence once the end is reached
+    //#strategies
+    .queue // default behavior: use an Iterator on the underlying sequence
+    .random // randomly pick an entry in the sequence
+    .shuffle // shuffle entries, then behave like queue
+    .circular // go back to the top of the sequence once the end is reached
     //#strategies
   }
 
@@ -58,6 +58,12 @@ class FeederSample {
     val ssvFeeder = ssv("foo.ssv") // use a semicolon separator
     val customSeparatorFeeder = separatedValues("foo.txt", '#') // use your own separator
     //#sep-values-feeders
+  }
+
+  {
+    //#eager
+    val csvFeeder = csv("foo.csv").eager.random
+    //#eager
   }
 
   {
@@ -106,31 +112,48 @@ class FeederSample {
 
   {
     //#redis-LPOP
+    import io.gatling.redis.Predef._
+
     import com.redis._
-    import io.gatling.redis.feeder.RedisFeeder
 
     val redisPool = new RedisClientPool("localhost", 6379)
 
     // use a list, so there's one single value per record, which is here named "foo"
-    val feeder = RedisFeeder(redisPool, "foo")
+    // same as redisFeeder(redisPool, "foo").LPOP
+    val feeder = redisFeeder(redisPool, "foo")
     //#redis-LPOP
   }
 
   {
-    import com.redis._
-    import io.gatling.redis.feeder.RedisFeeder
+    import io.gatling.redis.Predef._
 
-    val clientPool = new RedisClientPool("localhost", 6379)
+    import com.redis._
+
+    val redisPool = new RedisClientPool("localhost", 6379)
 
     //#redis-SPOP
     // read data using SPOP command from a set named "foo"
-    val feeder = RedisFeeder(clientPool, "foo", RedisFeeder.SPOP)
+    val feeder = redisFeeder(redisPool, "foo").SPOP
     //#redis-SPOP
+  }
+
+  {
+    import io.gatling.redis.Predef._
+
+    import com.redis._
+
+    val redisPool = new RedisClientPool("localhost", 6379)
+
+    //#redis-SRANDMEMBER
+    // read data using SRANDMEMBER command from a set named "foo"
+    val feeder = redisFeeder(redisPool, "foo").SRANDMEMBER
+    //#redis-SRANDMEMBER
   }
 
   {
     //#redis-1million
     import java.io.{ File, PrintWriter }
+
     import io.gatling.redis.util.RedisHelper._
 
     def generateOneMillionUrls(): Unit = {
@@ -176,24 +199,29 @@ class FeederSample {
 
   {
     //#user-dependent-data
-    import io.gatling.core.feeder._
     import java.util.concurrent.ThreadLocalRandom
+
+    import io.gatling.core.feeder._
 
     // index records by project
     val recordsByProject: Map[String, Seq[Record[Any]]] =
-      csv("projectIssue.csv").readRecords.groupBy { record => record("project").toString }
+      csv("projectIssue.csv").readRecords.groupBy { record =>
+        record("project").toString
+      }
 
     // convert the Map values to get only the issues instead of the full records
     val issuesByProject: Map[String, Seq[Any]] =
-      recordsByProject.mapValues { records => records.map { record => record("issue") } }
+      recordsByProject.mapValues { records =>
+        records.map { record =>
+          record("issue")
+        }
+      }
 
     // inject project
     feed(csv("userProject.csv"))
-
       .exec { session =>
         // fetch project from  session
         session("project").validate[String].map { project =>
-
           // fetch project's issues
           val issues = issuesByProject(project)
 

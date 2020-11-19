@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.gatling.core.action.builder
 
-import io.gatling.commons.util.RoundRobin
+import io.gatling.commons.util.CircularIterator
 import io.gatling.commons.validation.SuccessWrapper
 import io.gatling.core.action.{ Action, Switch }
 import io.gatling.core.session.Expression
@@ -30,7 +30,7 @@ class RoundRobinSwitchBuilder(possibilities: List[ChainBuilder]) extends ActionB
   override def build(ctx: ScenarioContext, next: Action): Action = {
 
     val possibleActions = possibilities.map(_.build(ctx, next)).toArray
-    val roundRobin = RoundRobin(possibleActions)
+    val roundRobin = CircularIterator(possibleActions, threadSafe = true)
 
     val nextAction: Expression[Action] = _ => roundRobin.next.success
 

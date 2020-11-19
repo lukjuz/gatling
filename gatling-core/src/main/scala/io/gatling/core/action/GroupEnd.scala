@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,9 +27,9 @@ class GroupEnd(statsEngine: StatsEngine, clock: Clock, val next: Action) extends
 
   def execute(session: Session): Unit =
     session.blockStack match {
-      case (group: GroupBlock) :: _ =>
-        statsEngine.logGroupEnd(session, group, clock.nowMillis)
-        next ! session.exitGroup
+      case (block: GroupBlock) :: tail =>
+        statsEngine.logGroupEnd(session.scenario, block, clock.nowMillis)
+        next ! session.exitGroup(tail)
 
       case _ =>
         logger.error(s"GroupEnd called but head of stack ${session.blockStack} isn't a GroupBlock, please report.")

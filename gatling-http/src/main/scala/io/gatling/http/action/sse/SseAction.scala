@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,15 @@
 
 package io.gatling.http.action.sse
 
-import io.gatling.core.action.ActorBasedAction
+import io.gatling.commons.validation._
+import io.gatling.core.session.Session
+import io.gatling.http.action.sse.fsm.SseFsm
 
-trait SseAction extends ActorBasedAction {
-  override val actorFetchErrorMessage = "Couldn't fetch open sse"
+trait SseAction {
+
+  final def fetchFsm(sseName: String, session: Session): Validation[SseFsm] =
+    session.attributes.get(sseName) match {
+      case Some(sseFsm) => sseFsm.asInstanceOf[SseFsm].success
+      case _            => "Couldn't fetch open sse".failure
+    }
 }

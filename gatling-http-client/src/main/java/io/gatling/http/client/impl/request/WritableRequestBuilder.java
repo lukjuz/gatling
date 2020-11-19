@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import io.gatling.http.client.SignatureCalculator;
 import io.gatling.http.client.body.RequestBody;
 import io.gatling.http.client.body.WritableContent;
 import io.gatling.http.client.proxy.HttpProxyServer;
-import io.gatling.http.client.ahc.uri.Uri;
+import io.gatling.http.client.uri.Uri;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
@@ -41,7 +41,7 @@ public class WritableRequestBuilder {
                                                          HttpHeaders headers) {
 
     // force content-length to 0 when method usually takes a body, some servers might break otherwise
-    if (!headers.contains(CONTENT_LENGTH) && (method == POST || method == PUT || method == PATCH)) {
+    if (!headers.contains(CONTENT_LENGTH) && (POST.equals(method) || PUT.equals(method) || PATCH.equals(method))) {
       headers.set(CONTENT_LENGTH, 0);
     }
 
@@ -57,19 +57,16 @@ public class WritableRequestBuilder {
   }
 
   private static WritableRequest buildRequestWithBody(String url,
-                                                      Uri uri,
                                                       HttpMethod method,
                                                       HttpHeaders headers,
                                                       RequestBody<?> requestBody,
-                                                      ByteBufAllocator alloc,
-                                                      HttpClientConfig config) throws IOException {
+                                                      ByteBufAllocator alloc) throws IOException {
 
-    boolean zeroCopy = !uri.isSecured() && config.isEnableZeroCopy();
-    WritableContent writableContent = requestBody.build(zeroCopy, alloc);
+    WritableContent writableContent = requestBody.build(alloc);
 
     Object content = writableContent.getContent();
 
-    if (content instanceof ByteBuf) {
+    if (content instanceof ByteBuf && !headers.contains(EXPECT, HttpHeaderValues.CONTINUE, true)) {
       ByteBuf bb = (ByteBuf) content;
       if (!headers.contains(CONTENT_LENGTH)) {
         headers.set(CONTENT_LENGTH, bb.readableBytes());
@@ -108,20 +105,29 @@ public class WritableRequestBuilder {
     HttpHeaders headers = request.getHeaders();
     RequestBody<?> requestBody = request.getBody();
 
-    String url = http2 || (!uri.isSecured() && request.getProxyServer() instanceof HttpProxyServer) ?
+    boolean isClearHttpProxy = !uri.isSecured() && request.getProxyServer() instanceof HttpProxyServer;
+
+    String url = http2 || isClearHttpProxy ?
             uri.toUrl() : // HTTP proxy with clear HTTP uses absolute url
             uri.toRelativeUrl();
+
+    if (isClearHttpProxy) {
+      HttpProxyServer proxyServer = (HttpProxyServer) request.getProxyServer();
+      if (proxyServer.getRealm() != null) {
+        headers.set(PROXY_AUTHORIZATION, proxyServer.getRealm().getAuthorizationHeader());
+      }
+    }
 
     WritableRequest writableRequest =
       requestBody == null ?
             buildRequestWithoutBody(url, request.getMethod(), headers) :
-            buildRequestWithBody(url, uri, request.getMethod(), headers, requestBody, alloc, config);
+            buildRequestWithBody(url, request.getMethod(), headers, requestBody, alloc);
+
 
     SignatureCalculator signatureCalculator = request.getSignatureCalculator();
     if (signatureCalculator != null) {
       Request requestWithCompletedHeaders = new RequestBuilder(request, request.getUri())
         .setHeaders(writableRequest.getRequest().headers())
-        .setFixUrlEncoding(false)
         .setDefaultCharset(config.getDefaultCharset())
         .build();
       signatureCalculator.sign(requestWithCompletedHeaders);

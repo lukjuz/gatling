@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,42 +24,44 @@ import io.gatling.core.structure.ChainBuilder
 
 class CoreCompileTest extends Simulation {
 
-  val iterations = 10
-  val pause1 = 1
-  val pause2 = 2
-  val pause3 = 3
-  val pause4 = Integer.getInteger("testProperty")
+  private val iterations = 10
+  private val pause1 = 2
+  private val pause2 = Integer.getInteger("testProperty")
+  private val pause3 = pause2 milliseconds
+  private val baseUrl = "http://localhost:3000"
 
-  val pause5 = pause4 milliseconds
-  val pause6 = pause4 seconds
-  val pause7 = pause4 nanoseconds
+  private val noop: ChainBuilder = ???
+  private val protocol: Protocol = ???
 
-  val baseUrl = "http://localhost:3000"
+  private val usersInformation = tsv("user_information.tsv")
 
-  val noop: ChainBuilder = ???
-  val protocol: Protocol = ???
+  private val loginChain = exec(noop).pause(1)
 
-  val usersInformation = tsv("user_information.tsv")
-
-  val loginChain = exec(noop).pause(1)
-
-  val testData = tsv("test-data.tsv")
+  private val testData = tsv("test-data.tsv")
 
   feed(csv("foo.csv.zip").unzip)
+  feed(csv("foo.csv").eager)
   feed(csv("foo.csv").batch)
   feed(csv("foo.csv").unzip.batch.random)
   feed(csv("foo.csv").batch(500))
   feed(csv("foo.csv").batch(500).random)
   feed(csv("foo.csv.zip"), 5)
+  feed(jsonFile("foo.json"))
+  feed(jsonFile("foo.json").unzip)
+  feed(jsonFile("foo.json").unzip.random)
+  feed(jsonUrl("http://foo.com"))
+  feed(jsonUrl("http://foo.com").random)
 
-  val records: Seq[Map[String, Any]] = csv("foo.csv").readRecords
+  private val records: Seq[Map[String, Any]] = csv("foo.csv").readRecords
 
-  val richTestData = testData.convert { case ("keyOfAMultivaluedColumn", value) => value.split(",") }
+  private val richTestData = testData.convert { case ("keyOfAMultivaluedColumn", value) => value.split(",") }
 
-  val testData3 = Array(Map("foo" -> "bar")).circular
+  private val testData3 = Array(Map("foo" -> "bar")).circular
 
-  val lambdaUser = scenario("Standard User")
-    // First request outside iteration
+  private val chainedScenarios = exec(scenario("foo")).exec(scenario("bar"))
+
+  private val lambdaUser = scenario("Standard User")
+  // First request outside iteration
     .repeat(2) {
       feed(richTestData)
         .exec(noop)
@@ -113,21 +115,20 @@ class CoreCompileTest extends Simulation {
       // What will be repeated ?
       // First request to be repeated
       exec { session =>
-        println("iterate: " + session("counter"))
+        println(s"iterate: ${session("counter").as[Int]}")
         session
-      }
-        .exec(noop)
+      }.exec(noop)
         .during(12000 milliseconds, "foo") {
           exec(noop)
             .pause(2, constantPauses)
             .repeat(2, "tutu") {
               exec { session =>
-                println("--nested loop: " + session("tutu"))
+                println(s"--nested loop: ${session("tutu").as[Int]}")
                 session
               }
             }
             .exec { session =>
-              println("-loopDuring: " + session("foo"))
+              println(s"-loopDuring: ${session("foo").as[Int]}")
               session
             }
             .exec(noop)
@@ -138,12 +139,12 @@ class CoreCompileTest extends Simulation {
           exec(noop)
             .pause(2)
             .exec { session =>
-              println("-iterate1: " + session("counter") + ", doFor: " + session("duringCount"))
+              println(s"-iterate1: ${session("counter").as[Int]}, doFor: ${session("duringCount").as[Int]}")
               session
             }
             .repeat(2, "count") {
               exec { session =>
-                println("--iterate1: " + session("counter") + ", doFor: " + session("duringCount") + ", iterate2: " + session("count"))
+                println(s"--iterate1: ${session("counter").as[Int]}, doFor: ${session("duringCount").as[Int]}, iterate2: ${session("count").as[Int]}")
                 session
               }
             }
@@ -155,7 +156,8 @@ class CoreCompileTest extends Simulation {
           exec(noop)
         } {
           exec(noop)
-        }.pause(pause2)
+        }
+        .pause(pause2)
         // switch
         .randomSwitch(
           40d -> exec(noop),
@@ -190,20 +192,23 @@ class CoreCompileTest extends Simulation {
       exec(noop)
     }
 
-  val inject1 = nothingFor(10 milliseconds)
-  val inject2 = rampUsers(10).during(10 minutes)
-  val inject3 = constantUsersPerSec(10).during(1 minute)
-  val inject4 = atOnceUsers(100)
-  val inject5 = rampUsersPerSec(10) to 20 during (10 minutes)
-  val inject8 = heavisideUsers(1000) during (20 seconds)
+  private val inject1 = nothingFor(10 milliseconds)
+  private val inject2 = rampUsers(10).during(10 minutes)
+  private val inject3 = constantUsersPerSec(10).during(1 minute)
+  private val inject4 = atOnceUsers(100)
+  private val inject5 = rampUsersPerSec(10) to 20 during (10 minutes)
+  private val inject8 = heavisideUsers(1000) during (20 seconds)
 
-  val injectionSeq = Vector(1, 2, 4, 8).map(x => rampUsers(x * 100) during (5 seconds))
+  private val injectionSeq = Vector(1, 2, 4, 8).map(x => rampUsers(x * 100) during (5 seconds))
 
-  val closedInject1 = constantConcurrentUsers(100).during(10 seconds)
-  val closedInject2 = rampConcurrentUsers(100).to(200).during(10 seconds)
+  private val closedInject1 = constantConcurrentUsers(100).during(10 seconds)
+  private val closedInject2 = rampConcurrentUsers(100).to(200).during(10 seconds)
 
-  val openSeq = Seq(inject1, inject2, inject3)
-  val closedSeq = Seq(closedInject1, closedInject2)
+  private val openSeq = Seq(inject1, inject2, inject3)
+  private val closedSeq = Seq(closedInject1, closedInject2)
+
+  private val openMeta = incrementUsersPerSec(5).times(5).eachLevelLasting(10).separatedByRampsLasting(10).startingFrom(10)
+  private val closedMeta = incrementConcurrentUsers(5).times(5).eachLevelLasting(10).separatedByRampsLasting(10).startingFrom(10)
 
   setUp(
     lambdaUser.inject(inject1),
@@ -212,10 +217,10 @@ class CoreCompileTest extends Simulation {
     lambdaUser.inject(closedInject1, closedInject2),
     lambdaUser.inject(openSeq),
     lambdaUser.inject(closedSeq),
-    lambdaUser.inject(incrementUsersPerSec(5).times(5).eachLevelLasting(10).separatedByRampsLasting(10).startingFrom(10)),
-    lambdaUser.inject(incrementConcurrentUsers(5).times(5).eachLevelLasting(10).separatedByRampsLasting(10).startingFrom(10))
-  )
-    .protocols(protocol)
+    lambdaUser.inject(openMeta, inject1),
+    lambdaUser.inject(closedMeta, closedInject1),
+    lambdaUser.inject(inject1).noShard.andThen(lambdaUser.inject(inject2))
+  ).protocols(protocol)
     .pauses(uniformPausesPlusOrMinusPercentage(1))
     .disablePauses
     .constantPauses
@@ -225,12 +230,14 @@ class CoreCompileTest extends Simulation {
     .assertions(
       global.responseTime.mean.lte(50),
       global.responseTime.max.between(50, 500),
+      global.responseTime.max.around(50, 5),
       global.successfulRequests.count.gte(1500),
       global.responseTime.percentile1.lt(100),
       global.responseTime.percentile(99.999).lt(100),
       global.allRequests.percent.is(100),
       forAll.failedRequests.percent.is(0),
       forAll.responseTime.max.is(100),
+      global.responseTime.percentile(99).deviatesAround(100, 5),
       details("Users" / "Search" / "Index page").responseTime.mean.gt(0),
       details("Admins" / "Create").failedRequests.percent.lt(90),
       details("request_9").requestsPerSec.gte(10)

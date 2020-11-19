@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,31 +25,32 @@ import io.gatling.commons.util.Throwables._
 import io.gatling.commons.validation._
 import io.gatling.core.session.Session
 import io.gatling.core.util.NameGen
-import io.gatling.http.HeaderNames
 import io.gatling.http.engine.tx.HttpTx
 import io.gatling.http.response.{ HttpFailure, HttpResult, Response }
 import io.gatling.http.util.HttpHelper
 import io.gatling.http.util.HttpHelper.resolveFromUri
 
-import com.softwaremill.quicklens._
-import com.typesafe.scalalogging.StrictLogging
+import com.typesafe.scalalogging.LazyLogging
+import io.netty.handler.codec.http.HttpHeaderNames
 
 sealed trait ProcessorResult
-case class Proceed(newSession: Session, error: Option[String]) extends ProcessorResult
-case class Redirect(redirectTx: HttpTx) extends ProcessorResult
-case class Crash(error: String) extends ProcessorResult
+final case class Proceed(newSession: Session, error: Option[String]) extends ProcessorResult
+final case class Redirect(redirectTx: HttpTx) extends ProcessorResult
+final case class Crash(error: String) extends ProcessorResult
 
 trait ResponseProcessor {
   def onComplete(result: HttpResult): Unit
 }
 
 class DefaultResponseProcessor(
-    tx:               HttpTx,
+    tx: HttpTx,
     sessionProcessor: SessionProcessor,
-    statsProcessor:   StatsProcessor,
-    nextExecutor:     NextExecutor,
-    defaultCharset:   Charset
-) extends ResponseProcessor with StrictLogging with NameGen {
+    statsProcessor: StatsProcessor,
+    nextExecutor: NextExecutor,
+    defaultCharset: Charset
+) extends ResponseProcessor
+    with LazyLogging
+    with NameGen {
 
   def onComplete(result: HttpResult): Unit =
     result match {
@@ -61,43 +62,50 @@ class DefaultResponseProcessor(
     if (tx.request.requestConfig.errorChecks.isEmpty) {
       val sessionWithUpdatedStats = sessionProcessor.updateSessionCrashed(tx.currentSession, failure.startTimestamp, failure.endTimestamp)
       try {
-        statsProcessor.reportStats(tx.fullRequestName, tx.request.clientRequest, sessionWithUpdatedStats, KO, failure, Some(failure.errorMessage))
+        statsProcessor.reportStats(tx.fullRequestName, sessionWithUpdatedStats, KO, failure, Some(failure.errorMessage))
       } catch {
         case NonFatal(t) =>
-          logger.error(s"ResponseProcessor crashed while handling failure $failure on session=${tx.currentSession} request=${tx.request.requestName}: ${tx.request.clientRequest}, forwarding", t)
+          logger.error(
+            s"ResponseProcessor crashed while handling failure $failure on session=${tx.currentSession} request=${tx.request.requestName}: ${tx.request.clientRequest}, forwarding",
+            t
+          )
       } finally {
-        nextExecutor.executeNextOnCrash(sessionWithUpdatedStats, failure.endTimestamp)
+        nextExecutor.executeNextOnCrash(sessionWithUpdatedStats)
       }
     } else {
-      val (newSession, errorMessage) = sessionProcessor.updateSessionCrashedWithChecks(failure, tx.session)
+      val (newSession, errorMessage) = sessionProcessor.updateSessionCrashedWithChecks(failure, computeUpdates = false, tx.session)
       val status = if (errorMessage.isDefined) KO else OK
 
-      statsProcessor.reportStats(tx.fullRequestName, tx.request.clientRequest, newSession, status, failure, errorMessage)
-      nextExecutor.executeNextOnCrash(newSession, failure.endTimestamp)
+      statsProcessor.reportStats(tx.fullRequestName, newSession, status, failure, errorMessage)
+      nextExecutor.executeNextOnCrash(newSession)
     }
   }
 
-  private def handleResponse(response: Response): Unit = {
-    val clientRequest = tx.request.clientRequest
-    handleResponse0(response) match {
+  private def handleResponse(rawResponse: Response): Unit =
+    applyResponseTransformer(rawResponse) match {
+      case Failure(errorMessage) => proceed(rawResponse, Crash(errorMessage))
+      case Success(response)     => proceed(response, processResponse(response))
+    }
+
+  private def proceed(response: Response, result: ProcessorResult): Unit =
+    result match {
       case Proceed(newSession, errorMessage) =>
         // different from tx.status because tx could be silent
         val status = if (errorMessage.isDefined) KO else OK
-        statsProcessor.reportStats(tx.fullRequestName, clientRequest, newSession, status, response, errorMessage)
+        statsProcessor.reportStats(tx.fullRequestName, newSession, status, response, errorMessage)
         nextExecutor.executeNext(newSession, status, response)
 
       case Redirect(redirectTx) =>
-        statsProcessor.reportStats(tx.fullRequestName, clientRequest, redirectTx.currentSession, OK, response, None)
+        statsProcessor.reportStats(tx.fullRequestName, redirectTx.currentSession, OK, response, None)
         nextExecutor.executeRedirect(redirectTx)
 
       case Crash(errorMessage) =>
         val newSession = sessionProcessor.updateSessionCrashed(tx.currentSession, response.startTimestamp, response.endTimestamp)
-        statsProcessor.reportStats(tx.fullRequestName, clientRequest, newSession, KO, response, Some(errorMessage))
-        nextExecutor.executeNextOnCrash(newSession, response.endTimestamp)
+        statsProcessor.reportStats(tx.fullRequestName, newSession, KO, response, Some(errorMessage))
+        nextExecutor.executeNextOnCrash(newSession)
     }
-  }
 
-  private def handleResponseTransformer(rawResponse: Response): Validation[Response] =
+  private def applyResponseTransformer(rawResponse: Response): Validation[Response] =
     tx.request.requestConfig.responseTransformer match {
       case Some(transformer) =>
         safely("Response transformer crashed: " + _) {
@@ -106,47 +114,48 @@ class DefaultResponseProcessor(
       case _ => rawResponse.success
     }
 
-  private def handleResponse0(rawResponse: Response): ProcessorResult =
+  private def processResponse(response: Response): ProcessorResult =
     try {
-      handleResponseTransformer(rawResponse) match {
-        case Failure(errorMessage) =>
-          Crash(errorMessage)
+      if (HttpHelper.isRedirect(response.status) && tx.request.requestConfig.followRedirect) {
+        val location = response.headers.get(HttpHeaderNames.LOCATION)
+        if (location == null) {
+          Crash("Redirect status, yet no Location header")
+        } else {
+          val redirectUri = resolveFromUri(tx.request.clientRequest.getUri, location)
+          val newSession = sessionProcessor.updatedRedirectSession(tx.currentSession, response, redirectUri)
 
-        case Success(response) =>
-          if (HttpHelper.isRedirect(response.status) && tx.request.requestConfig.followRedirect) {
-            if (tx.redirectCount >= tx.request.requestConfig.maxRedirects) {
-              Crash("Too many redirects, max is " + tx.request.requestConfig.maxRedirects)
+          RedirectProcessor.redirectRequest(
+            tx.request.clientRequest,
+            newSession,
+            response.status,
+            tx.request.requestConfig.httpProtocol,
+            redirectUri,
+            defaultCharset
+          ) match {
+            case Success(redirectRequest) =>
+              Redirect(
+                tx.copy(
+                  session = newSession,
+                  request = tx.request.copy(clientRequest = redirectRequest),
+                  redirectCount = tx.redirectCount + 1
+                )
+              )
 
-            } else {
-              response.header(HeaderNames.Location) match {
-                case Some(location) =>
-                  val redirectUri = resolveFromUri(tx.request.clientRequest.getUri, location)
-                  val newSession = sessionProcessor.updatedRedirectSession(tx.currentSession, response, redirectUri)
-                  RedirectProcessor.redirectRequest(tx.request.clientRequest, newSession, response.status, tx.request.requestConfig.httpProtocol, redirectUri, defaultCharset) match {
-                    case Success(redirectRequest) =>
-                      Redirect(tx
-                        .modify(_.session).setTo(newSession)
-                        .modify(_.request.clientRequest).setTo(redirectRequest)
-                        .modify(_.redirectCount).using(_ + 1))
-
-                    case Failure(message) =>
-                      Crash(message)
-                  }
-
-                case _ =>
-                  Crash("Redirect status, yet no Location header")
-              }
-            }
-
-          } else {
-            val (newSession, errorMessage) = sessionProcessor.updatedSession(tx.currentSession, response)
-            Proceed(newSession, errorMessage)
+            case Failure(message) =>
+              Crash(message)
           }
+        }
+      } else {
+        val (newSession, errorMessage) = sessionProcessor.updatedSession(tx.currentSession, response)
+        Proceed(newSession, errorMessage)
       }
 
     } catch {
       case NonFatal(t) =>
-        logger.error(s"ResponseProcessor crashed while handling response ${rawResponse.status} on session=${tx.currentSession} request=${tx.request.requestName}: ${tx.request.clientRequest}, forwarding", t)
+        logger.error(
+          s"ResponseProcessor crashed while handling response ${response.status} on session=${tx.currentSession} request=${tx.request.requestName}: ${tx.request.clientRequest}, forwarding",
+          t
+        )
         Crash(t.detailedMessage)
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,14 +21,19 @@ import io.gatling.http.client.body.RequestBodyBuilder;
 
 import java.nio.charset.Charset;
 
+import static io.gatling.http.client.util.MiscUtils.withDefault;
+
 public class ByteArrayRequestBodyBuilder extends RequestBodyBuilder<byte[]> {
 
-  public ByteArrayRequestBodyBuilder(byte[] content) {
+  private final String fileName;
+
+  public ByteArrayRequestBodyBuilder(byte[] content, String fileName) {
     super(content);
+    this.fileName = fileName;
   }
 
   @Override
-  public RequestBody<byte[]> build(String contentType, Charset charset) {
-    return new ByteArrayRequestBody(content, contentType, charset);
+  public RequestBody<byte[]> build(String contentType, Charset charset, Charset defaultCharset) {
+    return new ByteArrayRequestBody(content, contentType, fileName, withDefault(charset, defaultCharset));
   }
 }

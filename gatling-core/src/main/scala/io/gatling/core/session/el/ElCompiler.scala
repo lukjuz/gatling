@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,10 @@
 
 package io.gatling.core.session.el
 
-import java.nio.charset.Charset
+import java.{ util => ju }
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.concurrent.ThreadLocalRandom
-import java.util.{ Collection => JCollection, List => JList, Map => JMap }
 
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
@@ -28,12 +29,12 @@ import scala.util.parsing.combinator.RegexParsers
 import io.gatling.commons.NotNothing
 import io.gatling.commons.util.NumberHelper._
 import io.gatling.commons.util.StringHelper._
-import io.gatling.commons.util.TypeHelper._
 import io.gatling.commons.util.TypeCaster
+import io.gatling.commons.util.TypeHelper._
 import io.gatling.commons.validation._
 import io.gatling.core.json.Json
 import io.gatling.core.session._
-import io.gatling.netty.util.ahc.StringBuilderPool
+import io.gatling.netty.util.StringBuilderPool
 
 object ElMessages {
   def undefinedSeqIndex(name: String, index: Int): Failure = s"Seq named '$name' is undefined for index $index".failure
@@ -44,38 +45,38 @@ object ElMessages {
   def randomNotSupported(value: Any, name: String): Failure = s"$value named '$name' does not support .random function".failure
   def indexAccessNotSupported(value: Any, name: String): Failure = s"$value named '$name' does not support index access".failure
   def outOfRangeAccess(name: String, value: Any, index: Int): Failure = s"Product $value named $name has no element with index $index".failure
-  def tupleAccessNotSupported(name: String, value: Any): Failure = s"Product $value named $name do not support tuple access".failure
+  def tupleAccessNotSupported(name: String, value: Any): Failure = s"$value named $name do not support tuple access".failure
 }
 
-sealed trait Part[+T] extends (Session => Validation[T])
+sealed trait ElPart[+T] extends (Session => Validation[T]) with Product with Serializable
 
-case class StaticPart(string: String) extends Part[String] {
+final case class StaticPart(string: String) extends ElPart[String] {
   def apply(session: Session): Validation[String] = string.success
 }
 
-case class AttributePart(name: String) extends Part[Any] {
+final case class AttributePart(name: String) extends ElPart[Any] {
   def apply(session: Session): Validation[Any] = session(name).validate[Any]
 }
 
-case class SizePart(seqPart: Part[Any], name: String) extends Part[Int] {
+final case class SizePart(seqPart: ElPart[Any], name: String) extends ElPart[Int] {
   def apply(session: Session): Validation[Int] =
     seqPart(session).flatMap {
-      case t: Traversable[_]          => t.size.success
-      case collection: JCollection[_] => collection.size.success
-      case map: JMap[_, _]            => map.size.success
-      case arr: Array[_]              => arr.length.success
-      case product: Product           => product.productArity.success
-      case other                      => ElMessages.sizeNotSupported(other, name)
+      case t: Traversable[_]            => t.size.success
+      case collection: ju.Collection[_] => collection.size.success
+      case map: ju.Map[_, _]            => map.size.success
+      case arr: Array[_]                => arr.length.success
+      case product: Product             => product.productArity.success
+      case other                        => ElMessages.sizeNotSupported(other, name)
     }
 }
 
-case class RandomPart(seq: Part[Any], name: String) extends Part[Any] {
+final case class RandomPart(seq: ElPart[Any], name: String) extends ElPart[Any] {
   def apply(session: Session): Validation[Any] = {
     def random(size: Int) = ThreadLocalRandom.current.nextInt(size)
 
     seq(session).flatMap {
       case seq: Seq[_]      => seq(random(seq.size)).success
-      case list: JList[_]   => list.get(random(list.size)).success
+      case list: ju.List[_] => list.get(random(list.size)).success
       case arr: Array[_]    => arr(random(arr.length)).success
       case product: Product => product.productElement(random(product.productArity)).success
       case other            => ElMessages.randomNotSupported(other, name)
@@ -83,7 +84,7 @@ case class RandomPart(seq: Part[Any], name: String) extends Part[Any] {
   }
 }
 
-case class ExistsPart(part: Part[Any], name: String) extends Part[Boolean] {
+final case class ExistsPart(part: ElPart[Any], name: String) extends ElPart[Boolean] {
   def apply(session: Session): Validation[Boolean] =
     part(session) match {
       case _: Failure => FalseSuccess
@@ -91,7 +92,7 @@ case class ExistsPart(part: Part[Any], name: String) extends Part[Boolean] {
     }
 }
 
-case class IsUndefinedPart(part: Part[Any], name: String) extends Part[Boolean] {
+final case class IsUndefinedPart(part: ElPart[Any], name: String) extends ElPart[Boolean] {
   def apply(session: Session): Validation[Boolean] =
     part(session) match {
       case _: Failure => TrueSuccess
@@ -99,7 +100,7 @@ case class IsUndefinedPart(part: Part[Any], name: String) extends Part[Boolean] 
     }
 }
 
-case class JsonStringify(part: Part[Any], name: String) extends Part[String] {
+final case class JsonStringify(part: ElPart[Any], name: String) extends ElPart[String] {
   def apply(session: Session): Validation[String] =
     part(session) match {
       case Success(value)   => Json.stringify(value, isRootObject = false).success
@@ -108,7 +109,7 @@ case class JsonStringify(part: Part[Any], name: String) extends Part[String] {
     }
 }
 
-case class SeqElementPart(seq: Part[Any], seqName: String, index: String) extends Part[Any] {
+final case class SeqElementPart(seq: ElPart[Any], seqName: String, index: String) extends ElPart[Any] {
   def apply(session: Session): Validation[Any] = {
 
     def seqElementPart(index: Int): Validation[Any] = seq(session).flatMap {
@@ -120,9 +121,13 @@ case class SeqElementPart(seq: Part[Any], seqName: String, index: String) extend
         if (index < arr.length) arr(index).success
         else ElMessages.undefinedSeqIndex(seqName, index)
 
-      case list: JList[_] =>
+      case list: ju.List[_] =>
         if (index < list.size) list.get(index).success
         else ElMessages.undefinedSeqIndex(seqName, index)
+
+      case product: Product =>
+        if (index < product.productArity) product.productElement(index).success
+        else ElMessages.outOfRangeAccess(seqName, product, index)
 
       case other => ElMessages.indexAccessNotSupported(other, seqName)
     }
@@ -134,15 +139,16 @@ case class SeqElementPart(seq: Part[Any], seqName: String, index: String) extend
   }
 }
 
-case class MapKeyPart(map: Part[Any], mapName: String, key: String) extends Part[Any] {
+final case class MapKeyPart(map: ElPart[Any], mapName: String, key: String) extends ElPart[Any] {
 
   def apply(session: Session): Validation[Any] = map(session).flatMap {
-    case m: Map[_, _] => m.asInstanceOf[Map[Any, _]].get(key) match {
-      case Some(value) => value.success
-      case None        => ElMessages.undefinedMapKey(mapName, key)
-    }
+    case m: Map[_, _] =>
+      m.asInstanceOf[Map[Any, _]].get(key) match {
+        case Some(value) => value.success
+        case None        => ElMessages.undefinedMapKey(mapName, key)
+      }
 
-    case map: JMap[_, _] =>
+    case map: ju.Map[_, _] =>
       if (map.containsKey(key)) map.get(key).success
       else ElMessages.undefinedMapKey(mapName, key)
 
@@ -150,7 +156,7 @@ case class MapKeyPart(map: Part[Any], mapName: String, key: String) extends Part
   }
 }
 
-case class TupleAccessPart(tuple: Part[Any], tupleName: String, index: Int) extends Part[Any] {
+final case class TupleAccessPart(tuple: ElPart[Any], tupleName: String, index: Int) extends ElPart[Any] {
   def apply(session: Session): Validation[Any] = tuple(session).flatMap {
     case product: Product =>
       if (index > 0 && product.productArity >= index) product.productElement(index - 1).success
@@ -160,96 +166,81 @@ case class TupleAccessPart(tuple: Part[Any], tupleName: String, index: Int) exte
   }
 }
 
+case object CurrentTimeMillisPart extends ElPart[Long] {
+  def apply(session: Session): Validation[Long] = System.currentTimeMillis().success
+}
+
+final case class CurrentDateTimePart(format: SimpleDateFormat) extends ElPart[String] {
+  def apply(session: Session): Validation[String] = format.format(new Date()).success
+}
+
 class ElParserException(string: String, msg: String) extends Exception(s"Failed to parse $string with error '$msg'")
 
 object ElCompiler {
 
   private val NameRegex = "[^.${}()]+".r
+  private val NumberRegex = "[0-9]+".r
   private val DynamicPartStart = "${".toCharArray
 
-  private val TheELCompiler = new ThreadLocal[ElCompiler] {
+  private val ElCompilers = new ThreadLocal[ElCompiler] {
     override def initialValue = new ElCompiler
   }
 
-  private val EmptyBytesExpression: Expression[Seq[Array[Byte]]] = Seq(Array.empty[Byte]).expressionSuccess
-
-  def parse(string: String): List[Part[Any]] = TheELCompiler.get.parseEl(string)
+  @throws[ElParserException]
+  def parse(string: String): List[ElPart[Any]] = ElCompilers.get.parseEl(string)
 
   def compile[T: TypeCaster: ClassTag: NotNothing](string: String): Expression[T] =
     parse(string) match {
-      case List(StaticPart(staticStr)) =>
+      case StaticPart(staticStr) :: Nil =>
         val runtimeClass = implicitly[ClassTag[T]].runtimeClass
         if (runtimeClass == classOf[String] || runtimeClass == classOf[Any] || runtimeClass == classOf[Object]) {
-          StaticStringExpression(staticStr).asInstanceOf[Expression[T]]
+          StaticValueExpression(staticStr).asInstanceOf[Expression[T]]
         } else {
           val stringV = staticStr.asValidation[T]
           _ => stringV
         }
 
-      case List(dynamicPart) => dynamicPart(_).flatMap(_.asValidation[T])
+      case dynamicPart :: Nil => dynamicPart(_).flatMap(_.asValidation[T])
 
       case parts =>
-        (session: Session) => parts.foldLeft(StringBuilderPool.DEFAULT.get().success) { (sb, part) =>
-          part match {
-            case StaticPart(s) => sb.map(_.append(s))
-            case _ =>
-              for {
-                sb <- sb
-                part <- part(session)
-              } yield sb.append(part)
-          }
-        }.flatMap(_.toString.asValidation[T])
+        (session: Session) =>
+          parts
+            .foldLeft(StringBuilderPool.DEFAULT.get().success) { (sb, part) =>
+              part match {
+                case StaticPart(s) => sb.map(_.append(s))
+                case _ =>
+                  for {
+                    sb <- sb
+                    part <- part(session)
+                  } yield sb.append(part)
+              }
+            }
+            .flatMap(_.toString.asValidation[T])
     }
-
-  def compile2BytesSeq(string: String, charset: Charset): Expression[Seq[Array[Byte]]] = {
-
-    @tailrec
-    def compile2BytesSeqRec(session: Session, bytes: List[Bytes], resolved: List[Array[Byte]]): Validation[Seq[Array[Byte]]] =
-      bytes match {
-        case Nil => resolved.reverse.success
-        case head :: tail => head.bytes(session) match {
-          case Success(bs)      => compile2BytesSeqRec(session, tail, bs :: resolved)
-          case failure: Failure => failure
-        }
-      }
-
-    val parts = ElCompiler.parse(string)
-
-    parts match {
-      case Nil                  => EmptyBytesExpression
-      case StaticPart(s) :: Nil => Seq(s.getBytes(charset)).expressionSuccess
-      case _ =>
-        val bytes = parts.map {
-          case StaticPart(s) => StaticBytes(s.getBytes(charset).expressionSuccess)
-          case part          => DynamicBytes(part, charset)
-        }
-        session: Session => compile2BytesSeqRec(session, bytes, Nil)
-    }
-  }
 }
 
-class ElCompiler extends RegexParsers {
+private[el] sealed trait AccessToken extends Product with Serializable { def token: String }
+private[el] final case class AccessIndex(pos: String, token: String) extends AccessToken
+private[el] final case class AccessKey(key: String, token: String) extends AccessToken
+private[el] sealed trait AccessFunction extends AccessToken { protected def functionToken(functionName: String) = s".$functionName()" }
+private[el] case object AccessRandom extends AccessFunction { val token: String = functionToken("random") }
+private[el] case object AccessSize extends AccessFunction { val token: String = functionToken("size") }
+private[el] case object AccessExists extends AccessFunction { val token: String = functionToken("exists") }
+private[el] case object AccessIsUndefined extends AccessFunction { val token: String = functionToken("isUndefined") }
+private[el] case object AccessJsonStringify extends AccessFunction { val token: String = functionToken("jsonStringify") }
+private[el] final case class AccessTuple(index: String, token: String) extends AccessToken
+
+class ElCompiler private extends RegexParsers {
 
   import ElCompiler._
 
-  sealed trait AccessToken { def token: String }
-  case class AccessIndex(pos: String, token: String) extends AccessToken
-  case class AccessKey(key: String, token: String) extends AccessToken
-  sealed trait AccessFunction extends AccessToken { protected def functionToken(functionName: String) = s".$functionName()" }
-  case object AccessRandom extends AccessFunction { val token: String = functionToken("random") }
-  case object AccessSize extends AccessFunction { val token: String = functionToken("size") }
-  case object AccessExists extends AccessFunction { val token: String = functionToken("exists") }
-  case object AccessIsUndefined extends AccessFunction { val token: String = functionToken("isUndefined") }
-  case object AccessJSONStringify extends AccessFunction { val token: String = functionToken("jsonStringify") }
-  case class AccessTuple(index: String, token: String) extends AccessToken
-
   override def skipWhitespace = false
 
-  def parseEl(string: String): List[Part[Any]] = {
-
+  private def parseEl(string: String): List[ElPart[Any]] = {
     val parseResult =
-      try { parseAll(expr, string) }
-      catch { case NonFatal(e) => throw new ElParserException(string, e.getMessage) }
+      try {
+        parseAll(expr, string)
+      } catch { case NonFatal(e) => throw new ElParserException(string, e.getMessage) }
 
     parseResult match {
       case Success(parts, _) => parts
@@ -257,36 +248,63 @@ class ElCompiler extends RegexParsers {
     }
   }
 
-  private val expr: Parser[List[Part[Any]]] = multivaluedExpr | (elExpr ^^ { part => List(part) })
+  private val expr: Parser[List[ElPart[Any]]] = multivaluedExpr | (elExpr ^^ (_ :: Nil))
 
-  private def multivaluedExpr: Parser[List[Part[Any]]] = (elExpr | staticPart) *
+  private def multivaluedExpr: Parser[List[ElPart[Any]]] = (elExpr | staticPart) *
 
-  private val staticPartPattern = new Parser[String] {
+  private val staticPartPattern: Parser[List[String]] = new Parser[String] {
     override def apply(in: Input): ParseResult[String] = {
       val source = in.source
       val offset = in.offset
       val end = source.length
 
       def success(i: Int) = Success(source.subSequence(offset, i).toString, in.drop(i - offset))
-      def failure = Failure("Not a static part", in)
 
       source.indexOf(DynamicPartStart, offset) match {
-        case -1 if offset == end => failure
-        case -1                  => success(end)
-        case n if n == offset    => failure
-        case n                   => success(n)
+        case -1 => success(end)
+        case n =>
+          val extra$Count = (n - 1).to(offset, step = -1).takeWhile(source.charAt(_) == '$').size
+          val halfCount = extra$Count / 2
+          val throughEscaped$ = success(n - halfCount)
+          if (extra$Count % 2 == 0) {
+            throughEscaped$.copy(next = throughEscaped$.next.drop(halfCount))
+          } else { // should escape
+            throughEscaped$.copy(
+              result = throughEscaped$.result + "{",
+              next = throughEscaped$.next.drop(halfCount + 2)
+            )
+          }
       }
     }
+  } >> {
+    case "" => success(Nil)
+    case s  => staticPartPattern ^^ (s :: _)
   }
 
-  private def staticPart: Parser[StaticPart] = staticPartPattern ^^ { staticStr => StaticPart(staticStr) }
+  private def staticPart: Parser[StaticPart] =
+    staticPartPattern ^? ({
+      case staticStr if staticStr.nonEmpty => StaticPart(staticStr.mkString)
+    }, _ => "Not a static part")
 
-  private def elExpr: Parser[Part[Any]] = "${" ~> sessionObject <~ "}"
+  private def elExpr: Parser[ElPart[Any]] = "${" ~> (nonSessionObject | sessionObject | emptyAttribute) <~ "}"
 
-  private def sessionObject: Parser[Part[Any]] = {
+  private def currentTimeMillis: Parser[ElPart[Any]] = "currentTimeMillis()" ^^ (_ => CurrentTimeMillisPart)
 
+  private def currentDate: Parser[ElPart[Any]] = "currentDate(" ~> NameRegex <~ ")" ^^ (format => CurrentDateTimePart(new SimpleDateFormat(format)))
+
+  private def nonSessionObject: Parser[ElPart[Any]] = currentTimeMillis | currentDate
+
+  private def indexAccess: Parser[AccessToken] = "(" ~> NameRegex <~ ")" ^^ (posStr => AccessIndex(posStr, s"($posStr)"))
+
+  private def keyAccess: Parser[AccessToken] = "." ~> NameRegex ^^ (keyName => AccessKey(keyName, "." + keyName))
+
+  private def tupleAccess: Parser[AccessTuple] = "._" ~> NumberRegex ^^ (indexPart => AccessTuple(indexPart, "._" + indexPart))
+
+  private def emptyAttribute: Parser[ElPart[Any]] = "" ^^ (_ => throw new Exception("attribute name is missing"))
+
+  private def sessionObject: Parser[ElPart[Any]] = {
     @tailrec
-    def sessionObjectRec(accessTokens: List[AccessToken], currentPart: Part[Any], currentPartName: String): Part[Any] = {
+    def sessionObjectRec(accessTokens: List[AccessToken], currentPart: ElPart[Any], currentPartName: String): ElPart[Any] = {
       accessTokens match {
         case Nil => currentPart
         case token :: otherTokens =>
@@ -298,7 +316,7 @@ class ElCompiler extends RegexParsers {
               case AccessSize            => SizePart(currentPart, currentPartName)
               case AccessExists          => ExistsPart(currentPart, currentPartName)
               case AccessIsUndefined     => IsUndefinedPart(currentPart, currentPartName)
-              case AccessJSONStringify   => JsonStringify(currentPart, currentPartName)
+              case AccessJsonStringify   => JsonStringify(currentPart, currentPartName)
               case AccessTuple(index, _) => TupleAccessPart(currentPart, currentPartName, index.toInt)
             }
 
@@ -307,35 +325,21 @@ class ElCompiler extends RegexParsers {
       }
     }
 
-    (objectName ~ (valueAccess *) ^^ { case objectPart ~ accessTokens => sessionObjectRec(accessTokens, objectPart, objectPart.name) }) | emptyAttribute
+    objectName ~ (valueAccess *) ^^ { case objectPart ~ accessTokens => sessionObjectRec(accessTokens, objectPart, objectPart.name) }
   }
 
-  private def objectName: Parser[AttributePart] = NameRegex ^^ { name => AttributePart(name) }
+  private def objectName: Parser[AttributePart] = NameRegex ^^ (AttributePart(_))
 
-  private def functionAccess(access: AccessFunction) = access.token ^^ { _ => access }
+  private def functionAccess(access: AccessFunction): Parser[AccessFunction] = access.token ^^ (_ => access)
 
-  private def valueAccess =
+  private def valueAccess: Parser[AccessToken] =
     tupleAccess |
       indexAccess |
       functionAccess(AccessRandom) |
       functionAccess(AccessSize) |
       functionAccess(AccessExists) |
       functionAccess(AccessIsUndefined) |
-      functionAccess(AccessJSONStringify) |
+      functionAccess(AccessJsonStringify) |
       keyAccess |
-      (elExpr ^^ { _ => throw new Exception("nested attribute definition is not allowed") })
-
-  private def indexAccess: Parser[AccessToken] = "(" ~> NameRegex <~ ")" ^^ { posStr => AccessIndex(posStr, s"($posStr)") }
-
-  private def keyAccess: Parser[AccessToken] = "." ~> NameRegex ^^ { keyName => AccessKey(keyName, "." + keyName) }
-
-  private def tupleAccess: Parser[AccessTuple] = "._" ~> "[0-9]+".r ^^ { indexPart => AccessTuple(indexPart, "._" + indexPart) }
-
-  private def emptyAttribute: Parser[Part[Any]] = "" ^^ { _ => throw new Exception("attribute name is missing") }
-}
-
-sealed trait Bytes { def bytes: Expression[Array[Byte]] }
-case class StaticBytes(bytes: Expression[Array[Byte]]) extends Bytes
-case class DynamicBytes(part: Part[Any], charset: Charset) extends Bytes {
-  val bytes: Expression[Array[Byte]] = part.map(_.toString.getBytes(charset))
+      (elExpr ^^ (_ => throw new Exception("nested attribute definition is not allowed")))
 }

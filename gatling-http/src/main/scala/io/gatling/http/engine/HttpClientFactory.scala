@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,65 +17,52 @@
 package io.gatling.http.engine
 
 import io.gatling.commons.util.SystemProps._
-import io.gatling.core.CoreComponents
+import io.gatling.core.config.GatlingConfiguration
 import io.gatling.http.client.{ HttpClient, HttpClientConfig }
 import io.gatling.http.client.impl.DefaultHttpClient
 import io.gatling.http.util._
 
 import com.typesafe.scalalogging.StrictLogging
 
-private[gatling] object HttpClientFactory {
+private[gatling] final class HttpClientFactory(
+    sslContextsFactory: SslContextsFactory,
+    // [fl]
+    configuration: GatlingConfiguration
+) extends StrictLogging {
 
-  def apply(coreComponents: CoreComponents, sslContextsFactory: SslContextsFactory): HttpClientFactory =
-    coreComponents.configuration.resolve(
-      // [fl]
-      //
-      //
-      //
-      //
-      //
-      // [fl]
-      new DefaultHttpClientFactory(coreComponents, sslContextsFactory)
-    )
-}
-
-private[gatling] trait HttpClientFactory {
-
-  def newClient: HttpClient
-}
-
-private[gatling] class DefaultHttpClientFactory(coreComponents: CoreComponents, sslContextsFactory: SslContextsFactory)
-  extends HttpClientFactory
-  with EventLoopGroups
-  with StrictLogging {
-
-  private val httpConfig = coreComponents.configuration.http
-  setSystemPropertyIfUndefined("io.netty.allocator.type", httpConfig.advanced.allocator)
-  setSystemPropertyIfUndefined("io.netty.maxThreadLocalCharBufferSize", httpConfig.advanced.maxThreadLocalCharBufferSize)
+  private val httpConfig = configuration.http
+  private val socketConfig = configuration.socket
+  private val sslConfig = configuration.ssl
+  private val nettyConfig = configuration.netty
+  setSystemPropertyIfUndefined("io.netty.allocator.type", nettyConfig.allocator)
+  setSystemPropertyIfUndefined("io.netty.maxThreadLocalCharBufferSize", nettyConfig.maxThreadLocalCharBufferSize)
 
   private[gatling] def newClientConfig(): HttpClientConfig = {
 
-    val SslContexts(defaultSslContext, defaultAlpnSslContext) = sslContextsFactory.newSslContexts(true)
+    val defaultSslContexts = sslContextsFactory.newSslContexts(http2Enabled = true, None)
     new HttpClientConfig()
-      .setDefaultSslContext(defaultSslContext)
-      .setDefaultAlpnSslContext(defaultAlpnSslContext.orNull)
-      .setConnectTimeout(httpConfig.advanced.connectTimeout.toMillis)
-      .setHandshakeTimeout(httpConfig.advanced.handshakeTimeout.toMillis)
-      .setChannelPoolIdleTimeout(httpConfig.advanced.pooledConnectionIdleTimeout.toMillis)
-      .setMaxRetry(httpConfig.advanced.maxRetry)
-      .setEnableSni(httpConfig.advanced.enableSni)
-      .setEnableHostnameVerification(httpConfig.advanced.enableHostnameVerification)
-      .setDefaultCharset(coreComponents.configuration.core.charset)
-      .setUseNativeTransport(httpConfig.advanced.useNativeTransport)
-      .setTcpNoDelay(httpConfig.advanced.tcpNoDelay)
-      .setSoReuseAddress(httpConfig.advanced.soReuseAddress)
-      .setEnableZeroCopy(httpConfig.advanced.enableZeroCopy)
+      .setDefaultSslContext(defaultSslContexts.sslContext)
+      .setDefaultAlpnSslContext(defaultSslContexts.alpnSslContext.orNull)
+      .setDefaultCharset(configuration.core.charset)
+      .setEnableHostnameVerification(httpConfig.enableHostnameVerification)
+      .setChannelPoolIdleTimeout(httpConfig.pooledConnectionIdleTimeout.toMillis)
+      .setConnectTimeout(socketConfig.connectTimeout.toMillis)
+      .setTcpNoDelay(socketConfig.tcpNoDelay)
+      .setSoKeepAlive(socketConfig.soKeepAlive)
+      .setSoReuseAddress(socketConfig.soReuseAddress)
+      .setHandshakeTimeout(sslConfig.handshakeTimeout.toMillis)
+      .setEnableSni(sslConfig.enableSni)
+      .setUseNativeTransport(nettyConfig.useNativeTransport)
       .setThreadPoolName("gatling-http")
+    //[fl]
+    //
+    //
+    //
+    //
+    //
+    //
+    //[fl]
   }
 
-  override def newClient: HttpClient = {
-    val client = new DefaultHttpClient(newClientConfig())
-    coreComponents.actorSystem.registerOnTermination(client.close())
-    client
-  }
+  def newClient: HttpClient = new DefaultHttpClient(newClientConfig())
 }

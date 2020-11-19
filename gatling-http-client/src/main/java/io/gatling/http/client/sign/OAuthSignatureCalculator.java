@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@ package io.gatling.http.client.sign;
 import io.gatling.http.client.Param;
 import io.gatling.http.client.Request;
 import io.gatling.http.client.SignatureCalculator;
-import io.gatling.http.client.ahc.oauth.ConsumerKey;
-import io.gatling.http.client.ahc.oauth.OAuthSignatureCalculatorInstance;
-import io.gatling.http.client.ahc.oauth.RequestToken;
+import io.gatling.http.client.oauth.ConsumerKey;
+import io.gatling.http.client.oauth.OAuthSignatureCalculatorInstance;
+import io.gatling.http.client.oauth.RequestToken;
 import io.gatling.http.client.body.form.FormUrlEncodedRequestBody;
 import io.gatling.http.client.body.RequestBody;
 

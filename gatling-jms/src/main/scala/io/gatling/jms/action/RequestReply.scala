@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,10 @@
 
 package io.gatling.jms.action
 
-import io.gatling.commons.util.Clock
-
 import javax.jms.Message
+
+import io.gatling.commons.stats.KO
+import io.gatling.commons.util.Clock
 import io.gatling.commons.validation.Validation
 import io.gatling.core.action._
 import io.gatling.core.controller.throttle.Throttler
@@ -35,19 +36,17 @@ import io.gatling.jms.request._
  * This implementation then forwards it on to a tracking actor.
  */
 class RequestReply(
-    attributes:         JmsAttributes,
-    replyDestination:   JmsDestination,
-    setJmsReplyTo:      Boolean,
+    attributes: JmsAttributes,
+    replyDestination: JmsDestination,
+    setJmsReplyTo: Boolean,
     trackerDestination: Option[JmsDestination],
-    protocol:           JmsProtocol,
-    jmsConnectionPool:  JmsConnectionPool,
-    val statsEngine:    StatsEngine,
-    val clock:          Clock,
-    val next:           Action,
-    throttler:          Throttler,
-    throttled:          Boolean
-)
-  extends JmsAction(attributes, protocol, jmsConnectionPool, throttler, throttled) {
+    protocol: JmsProtocol,
+    jmsConnectionPool: JmsConnectionPool,
+    val statsEngine: StatsEngine,
+    val clock: Clock,
+    val next: Action,
+    throttler: Option[Throttler]
+) extends JmsAction(attributes, protocol, jmsConnectionPool, throttler) {
 
   override val name: String = genName("jmsRequestReply")
 
@@ -56,26 +55,48 @@ class RequestReply(
   private val replyTimeout = protocol.replyTimeout.getOrElse(0L)
   private val jmsTrackerDestination = trackerDestination.map(dest => jmsConnection.destination(dest)).getOrElse(jmsReplyDestination)
 
-  override protected def beforeSend(requestName: String, session: Session): Validation[Message => Unit] =
+  override protected def aroundSend(requestName: String, session: Session, message: Message): Validation[Around] =
     for {
       resolvedReplyDestination <- jmsReplyDestination(session)
       resolvedTrackerDestination <- jmsTrackerDestination(session)
-    } yield (message: Message) => {
+      resolvedSelector <- resolveOptionalExpression(attributes.selector, session)
+    } yield {
       if (setJmsReplyTo) {
         message.setJMSReplyTo(resolvedReplyDestination)
       }
-      protocol.messageMatcher.prepareRequest(message)
+
+      messageMatcher.prepareRequest(message)
 
       // notify the tracker that a message was sent
       val matchId = messageMatcher.requestMatchId(message)
+      val tracker = jmsConnection.tracker(resolvedTrackerDestination, resolvedSelector, protocol.listenerThreadCount, messageMatcher)
 
-      if (logger.underlying.isDebugEnabled) {
-        logMessage(s"Message sent JMSMessageID=${message.getJMSMessageID} matchId=$matchId", message)
-      }
-      // [fl]
-      //
-      // [/fl]
-      val tracker = jmsConnection.tracker(resolvedTrackerDestination, attributes.selector, protocol.listenerThreadCount, messageMatcher)
-      tracker.track(matchId, clock.nowMillis, replyTimeout, attributes.checks, session, next, requestName)
+      new Around(
+        before = () => {
+          if (logger.underlying.isDebugEnabled) {
+            logMessage(s"Message sent matchId=$matchId", message)
+          }
+
+          // [fl]
+          //
+          // [fl]
+
+          if (matchId != null) {
+            tracker.track(matchId, clock.nowMillis, replyTimeout, attributes.checks, session, next, requestName)
+          }
+        },
+        after = () =>
+          if (matchId == null) {
+            val updatedMatchId = messageMatcher.requestMatchId(message)
+
+            if (updatedMatchId != null) {
+              tracker.track(updatedMatchId, clock.nowMillis, replyTimeout, attributes.checks, session, next, requestName)
+            } else {
+              val now = clock.nowMillis
+              statsEngine.logResponse(session.scenario, session.groups, requestName, now, now, KO, None, Some("Failed to get a matchId to track"))
+              next ! session.markAsFailed
+            }
+          }
+      )
     }
 }

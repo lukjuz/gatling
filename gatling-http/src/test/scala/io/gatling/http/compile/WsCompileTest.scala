@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,59 +31,110 @@ class WsCompileTest extends Simulation {
   private val scn = scenario("WebSocket")
     .exec(http("Home").get("/"))
     .pause(1)
-    .exec(session => session.set("id", "Steph" + session.userId))
+    .exec(session => session.set("id", s"Steph ${session.userId}"))
     .exec(http("Login").get("/room?username=${id}"))
     .pause(1)
-    .exec(ws("Connect WS").connect("/room/chat?username=${id}")
-      .subprotocol("FOO")
-      .await(1 second) {
-        ws.checkTextMessage("checkName")
-          .matching(jsonPath("$.uuid").is("${correlation}"))
-          .check(jsonPath("$.code").ofType[Int].is(1))
-      }
-      .await(1) { // simple int
-        ws.checkTextMessage("checkName")
-      }
-      .onConnected(
-        exec(ws("Perform auth")
-          .sendText("Some auth token"))
-          .pause(1)
-      ))
+    .exec(
+      ws("Connect WS")
+        .connect("/room/chat?username=${id}")
+        .subprotocol("FOO")
+        .await(1 second) {
+          ws.checkTextMessage("checkName")
+            .matching(jsonPath("$.uuid").is("${correlation}"))
+            .check(
+              jsonPath("$.code").ofType[Int].is(1),
+              jmesPath("code").ofType[Int].is(1),
+              bodyString.is("echo")
+            )
+        }
+        .await(1) { // simple int
+          ws.checkTextMessage("checkName")
+        }
+        .await("${someLongOrFiniteDurationAttribute}") { // EL string
+          ws.checkTextMessage("checkName")
+        }
+        .await(_ => 1 second) { // expression
+          ws.checkTextMessage("checkName")
+        }
+        .onConnected(
+          exec(
+            ws("Perform auth")
+              .sendText("Some auth token")
+          ).pause(1)
+        )
+    )
     .pause(1)
     .repeat(2, "i") {
-      exec(ws("Say Hello WS")
-        .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}"""))
-        .pause(1)
+      exec(
+        ws("Say Hello WS")
+          .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}""")
+      ).pause(1)
     }
-    .exec(ws("Message1").wsName("foo")
-      .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}""")
-      .await(30 seconds)(
-        ws.checkTextMessage("checkName1").check(jsonPath("$.message").findAll.saveAs("message1"))
-      )
-      .await(30 seconds)(
-        ws.checkTextMessage("checkName2").check(jsonPath("$.message").findAll.saveAs("message2"))
-      ))
-    .exec(ws("Message2")
-      .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}""")
-      .await(30 seconds)(
-        ws.checkTextMessage("checkName1").check(
-          regex("somePattern1").saveAs("message1"),
-          regex("somePattern2").saveAs("message2")
-        ),
-        ws.checkTextMessage("checkName2").check(regex("somePattern2").saveAs("message2"))
-      ))
-    .exec(ws("Message3")
-      .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}""")
-      .await(30 seconds)(
-        // match first message
-        ws.checkTextMessage("checkName")
-      ))
-    .exec(ws("BinaryMessage")
-      .sendBytes("hello".getBytes())
-      .await(30 seconds)(
-        // match first message
-        ws.checkBinaryMessage("checkName").check(bodyBytes.transform(_.length).saveAs("bytesLength"))
-      ))
+    .exec(
+      ws("Message1")
+        .wsName("foo")
+        .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}""")
+        .await(30 seconds)(
+          ws.checkTextMessage("checkName1").check(jsonPath("$.message").findAll.saveAs("message1"))
+        )
+        .await(30)( // simple int
+          ws.checkTextMessage("checkName2").check(jsonPath("$.message").findAll.saveAs("message2"))
+        )
+        .await("${someLongOrFiniteDurationAttribute}") { // EL string
+          ws.checkTextMessage("checkName2").check(jsonPath("$.message").findAll.saveAs("message2"))
+        }
+        .await(_ => 30 seconds)( // expression
+          ws.checkTextMessage("checkName2").check(jsonPath("$.message").findAll.saveAs("message2"))
+        )
+    )
+    .exec(
+      ws("Message2")
+        .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}""")
+        .await(30 seconds)(
+          ws.checkTextMessage("checkName1")
+            .check(
+              regex("somePattern1").saveAs("message1"),
+              regex("somePattern2").saveAs("message2")
+            ),
+          ws.checkTextMessage("checkName2").check(regex("somePattern2").saveAs("message2"))
+        )
+    )
+    .exec(
+      ws("Message3")
+        .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}""")
+        .await(30 seconds)(
+          // match first message
+          ws.checkTextMessage("checkName")
+        )
+    )
+    .exec(
+      ws("BinaryMessage")
+        .sendBytes("hello".getBytes())
+        .await(30 seconds)(
+          // match first message
+          ws.checkBinaryMessage("checkName").check(bodyBytes.transform(_.length).saveAs("bytesLength")).silent
+        )
+    )
     .exec(ws("Close WS").close)
     .exec(ws("Open Named", "foo").connect("/bar"))
+    .exec(
+      ws("SendTextMessageWithElFileBody")
+        .sendText(ElFileBody("pathToSomeFile"))
+    )
+    .exec(
+      ws("SendTextMessageWithPebbleStringBody")
+        .sendText(PebbleStringBody("somePebbleString"))
+    )
+    .exec(
+      ws("SendTextMessageWithPebbleFileBody")
+        .sendText(PebbleFileBody("pathToSomeFile"))
+    )
+    .exec(
+      ws("SendBytesMessageWithRawFileBody")
+        .sendBytes(RawFileBody("pathToSomeFile"))
+    )
+    .exec(
+      ws("SendBytesMessageWithByteArrayBody")
+        .sendBytes(ByteArrayBody("${someByteArray}"))
+    )
 }

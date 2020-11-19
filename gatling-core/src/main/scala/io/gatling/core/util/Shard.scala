@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 
 package io.gatling.core.util
+
+import scala.collection.AbstractIterator
 
 object Shard {
 
@@ -37,7 +39,7 @@ object Shard {
   }
 
   def shards(total: Long, buckets: Int): Iterator[Long] =
-    new Iterator[Long] {
+    new AbstractIterator[Long] {
       private[this] var currentIndex = 0
       private[this] var previousSumFromZero = 0L
 
@@ -53,4 +55,4 @@ object Shard {
     }
 }
 
-case class Shard(offset: Int, length: Int)
+final case class Shard(offset: Int, length: Int)

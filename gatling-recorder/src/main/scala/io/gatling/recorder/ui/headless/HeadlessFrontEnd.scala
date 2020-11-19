@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import java.io.{ File, PrintStream }
 import java.lang.management.ManagementFactory
 
 import io.gatling.commons.util.Io._
-import io.gatling.recorder.config.RecorderMode.Proxy
 import io.gatling.recorder.config.{ RecorderConfiguration, RecorderMode }
+import io.gatling.recorder.config.RecorderMode.Proxy
 import io.gatling.recorder.controller.RecorderController
 import io.gatling.recorder.ui.{ FrontEndEvent, RecorderFrontEnd }
 

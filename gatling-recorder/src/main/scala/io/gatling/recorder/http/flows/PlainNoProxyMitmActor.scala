@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,12 +40,11 @@ import io.netty.handler.codec.http.FullHttpRequest
  * @param trafficLogger log the traffic
  */
 class PlainNoProxyMitmActor(
-    serverChannel:   Channel,
+    serverChannel: Channel,
     clientBootstrap: Bootstrap,
-    trafficLogger:   TrafficLogger,
-    clock:           Clock
-)
-  extends PlainMitmActor(serverChannel, clientBootstrap, trafficLogger, clock) {
+    trafficLogger: TrafficLogger,
+    clock: Clock
+) extends PlainMitmActor(serverChannel, clientBootstrap, trafficLogger, clock) {
 
   override protected def connectedRemote(requestRemote: Remote): Remote =
     requestRemote

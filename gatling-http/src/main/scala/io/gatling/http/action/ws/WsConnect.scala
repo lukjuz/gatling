@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,55 +18,58 @@ package io.gatling.http.action.ws
 
 import io.gatling.commons.util.Clock
 import io.gatling.commons.validation._
+import io.gatling.core.CoreComponents
 import io.gatling.core.action.{ Action, RequestAction }
 import io.gatling.core.session.{ Expression, Session }
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
-import io.gatling.http.action.ws.fsm.{ PerformInitialConnect, WsActor }
-import io.gatling.http.check.ws.{ WsFrameCheck, WsFrameCheckSequence }
+import io.gatling.http.action.ws.fsm.WsFsm
+import io.gatling.http.check.ws.WsFrameCheck
 import io.gatling.http.client.Request
 import io.gatling.http.protocol.HttpComponents
 
 class WsConnect(
     override val requestName: Expression[String],
-    wsName:                   String,
-    subprotocol:              Option[String],
-    request:                  Expression[Request],
-    connectCheckSequences:    List[WsFrameCheckSequence[WsFrameCheck]],
-    onConnected:              Option[Action],
-    httpComponents:           HttpComponents,
-    val next:                 Action
-) extends RequestAction with WsAction with NameGen {
+    wsName: String,
+    request: Expression[Request],
+    connectCheckSequences: List[WsFrameCheckSequenceBuilder[WsFrameCheck]],
+    onConnected: Option[Action],
+    coreComponents: CoreComponents,
+    httpComponents: HttpComponents,
+    val next: Action
+) extends RequestAction
+    with WsAction
+    with NameGen {
 
   override val name: String = genName("wsConnect")
 
-  override def clock: Clock = httpComponents.coreComponents.clock
+  override def clock: Clock = coreComponents.clock
 
-  override def statsEngine: StatsEngine = httpComponents.coreComponents.statsEngine
+  override def statsEngine: StatsEngine = coreComponents.statsEngine
 
   override def sendRequest(requestName: String, session: Session): Validation[Unit] =
-    fetchActor(wsName, session) match {
+    fetchFsm(wsName, session) match {
       case _: Failure =>
         for {
-          request <- request(session)
+          connectRequest <- request(session)
+          resolvedCheckSequences <- WsFrameCheckSequenceBuilder.resolve(connectCheckSequences, session)
         } yield {
           logger.info(s"Opening websocket '$wsName': Scenario '${session.scenario}', UserId #${session.userId}")
 
-          val wsActor = httpComponents.coreComponents.actorSystem.actorOf(WsActor.props(
+          val wsFsm = new WsFsm(
             wsName,
-            request,
-            subprotocol,
+            connectRequest,
             requestName,
-            connectCheckSequences,
+            resolvedCheckSequences,
             onConnected,
             statsEngine,
             httpComponents.httpEngine,
             httpComponents.httpProtocol,
-            clock,
-            httpComponents.coreComponents.configuration
-          ), genName("wsActor"))
+            session.eventLoop,
+            clock
+          )
 
-          wsActor ! PerformInitialConnect(session, next)
+          wsFsm.onPerformInitialConnect(session, next)
         }
 
       case _ =>

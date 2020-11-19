@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,21 +22,23 @@ import scala.compat.java8.FunctionConverters._
 
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.util.cache.Cache
-import io.gatling.http.client.ahc.uri.Uri
-import io.gatling.http.fetch.{ CssParser, ConcurrentResource }
+import io.gatling.http.client.uri.Uri
+import io.gatling.http.fetch.ConcurrentResource
 import io.gatling.http.protocol.HttpProtocol
 import io.gatling.http.request.HttpRequest
 
-case class InferredPageResources(expire: String, requests: List[HttpRequest])
-case class InferredResourcesCacheKey(protocol: HttpProtocol, uri: Uri)
+private[cache] final case class InferredPageResources(expire: String, requests: List[HttpRequest])
+private[cache] final case class InferredResourcesCacheKey(protocol: HttpProtocol, uri: Uri)
 
-trait ResourceCacheSupport {
+private[cache] trait ResourceCacheSupport {
 
   def configuration: GatlingConfiguration
 
   // FIXME should CssContentCache use the same key?
-  private val cssContentCache: ConcurrentMap[Uri, List[ConcurrentResource]] = Cache.newConcurrentCache[Uri, List[ConcurrentResource]](configuration.http.fetchedCssCacheMaxCapacity)
-  private val inferredResourcesCache: ConcurrentMap[InferredResourcesCacheKey, InferredPageResources] = Cache.newConcurrentCache[InferredResourcesCacheKey, InferredPageResources](configuration.http.fetchedHtmlCacheMaxCapacity)
+  private val cssContentCache: ConcurrentMap[Uri, List[ConcurrentResource]] =
+    Cache.newConcurrentCache[Uri, List[ConcurrentResource]](configuration.http.fetchedCssCacheMaxCapacity)
+  private val inferredResourcesCache: ConcurrentMap[InferredResourcesCacheKey, InferredPageResources] =
+    Cache.newConcurrentCache[InferredResourcesCacheKey, InferredPageResources](configuration.http.fetchedHtmlCacheMaxCapacity)
 
   def isCssCached(uri: Uri): Boolean = cssContentCache.get(uri) != null
 
@@ -49,7 +51,12 @@ trait ResourceCacheSupport {
   def getCachedInferredResources(httpProtocol: HttpProtocol, htmlDocumentUri: Uri): InferredPageResources =
     inferredResourcesCache.get(InferredResourcesCacheKey(httpProtocol, htmlDocumentUri))
 
-  def computeInferredResourcesIfAbsent(httpProtocol: HttpProtocol, uri: Uri, lastModifiedOrEtag: String, computeResources: () => List[HttpRequest]): List[HttpRequest] = {
+  def computeInferredResourcesIfAbsent(
+      httpProtocol: HttpProtocol,
+      uri: Uri,
+      lastModifiedOrEtag: String,
+      computeResources: () => List[HttpRequest]
+  ): List[HttpRequest] = {
     val cacheKey = InferredResourcesCacheKey(httpProtocol, uri)
     Option(inferredResourcesCache.get(cacheKey)) match {
       case Some(InferredPageResources(`lastModifiedOrEtag`, inferredResources)) =>

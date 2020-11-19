@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,14 +27,17 @@ import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
-public class StringRequestBody extends RequestBody<String> {
+public final class StringRequestBody extends RequestBody<String> {
+
+  private final Charset charset;
 
   public StringRequestBody(String content, String contentType, Charset charset) {
-    super(content, contentType, charset);
+    super(content, contentType);
+    this.charset = charset;
   }
 
   @Override
-  public WritableContent build(boolean zeroCopy, ByteBufAllocator alloc) {
+  public WritableContent build(ByteBufAllocator alloc) {
     ByteBuf bb =
             charset.equals(StandardCharsets.UTF_8) ?
                     ByteBufUtil.writeUtf8(alloc, content) :
@@ -56,9 +59,9 @@ public class StringRequestBody extends RequestBody<String> {
   @Override
   public String toString() {
     return "StringRequestBody{" +
-      "content=" + content +
-      ", contentType=" + contentType +
+      "contentType='" + contentType + '\'' +
       ", charset=" + charset +
+      ", content=" + content +
       '}';
   }
 }

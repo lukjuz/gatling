@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,19 @@
 
 package io.gatling.core.session.el
 
-import java.util.{ ArrayList => JArrayList, HashMap => JHashMap, LinkedList => JLinkedList }
+import java.{ util => ju }
 
-import io.gatling.{ ValidationValues, BaseSpec }
+import io.gatling.{ BaseSpec, ValidationValues }
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.json.Jackson
-import io.gatling.core.session.{ el, Session }
+import io.gatling.core.session.SessionSpec.EmptySession
+import io.gatling.core.session.el
 
 class ElSpec extends BaseSpec with ValidationValues {
 
-  implicit val configuration = GatlingConfiguration.loadForTest()
+  private implicit val configuration: GatlingConfiguration = GatlingConfiguration.loadForTest()
 
-  def newSession(contents: Map[String, Any]) =
-    Session("scenario", 0, System.currentTimeMillis(), contents)
+  private def newSession(attributes: Map[String, Any]) =
+    EmptySession.copy(attributes = attributes)
 
   "Static String" should "return itself" in {
     val session = newSession(Map.empty)
@@ -127,7 +127,7 @@ class ElSpec extends BaseSpec with ValidationValues {
   }
 
   it should "return n-th element of JList" in {
-    val lst = new JLinkedList[Int]
+    val lst = new ju.LinkedList[Int]
     lst.add(1)
     lst.add(2)
     val session = newSession(Map("lst" -> lst))
@@ -142,7 +142,7 @@ class ElSpec extends BaseSpec with ValidationValues {
   }
 
   it should "handle gracefully when index in an JList is out of range" in {
-    val lst = new JLinkedList[Int]
+    val lst = new ju.LinkedList[Int]
     lst.add(1)
     lst.add(2)
     val session = newSession(Map("lst" -> lst))
@@ -178,6 +178,12 @@ class ElSpec extends BaseSpec with ValidationValues {
     val session = newSession(Map("i" -> 1))
     val expression = "${i(0)}".el[Int]
     expression(session).failed shouldBe ElMessages.indexAccessNotSupported(1, "i").message
+  }
+
+  it should "support tuples" in {
+    val session = newSession(Map("tuple" -> ("foo", "bar")))
+    val expression = "${tuple(0)}".el[String]
+    expression(session).succeeded shouldBe "foo"
   }
 
   "'size' function in Expression" should "return correct size for non empty seq" in {
@@ -229,7 +235,7 @@ class ElSpec extends BaseSpec with ValidationValues {
   }
 
   it should "return correct size for a non empty JMap" in {
-    val map = new JHashMap[Int, Int]
+    val map = new ju.HashMap[Int, Int]
     map.put(1, 1)
     map.put(2, 2)
     val session = newSession(Map("map" -> map))
@@ -251,7 +257,7 @@ class ElSpec extends BaseSpec with ValidationValues {
   }
 
   it should "return one of elements of JList" in {
-    val list = new JArrayList[Int]
+    val list = new ju.ArrayList[Int]
     list.add(1)
     list.add(2)
     val session = newSession(Map("lst" -> list))
@@ -291,7 +297,7 @@ class ElSpec extends BaseSpec with ValidationValues {
   }
 
   it should "return value by key from JMap" in {
-    val map = new JHashMap[String, Int]
+    val map = new ju.HashMap[String, Int]
     map.put("key1", 1)
     map.put("key2", 2)
     val session = newSession(Map("map" -> map))
@@ -319,7 +325,7 @@ class ElSpec extends BaseSpec with ValidationValues {
   }
 
   it should "handle missing value in JMap correctly" in {
-    val map = new JHashMap[String, Int]
+    val map = new ju.HashMap[String, Int]
     map.put("key1", 1)
     val session = newSession(Map("map" -> map))
     val expression = "${map.nonexisting}".el[Int]
@@ -541,14 +547,7 @@ class ElSpec extends BaseSpec with ValidationValues {
   }
 
   it should "support key access" in {
-
-    val json = Jackson().parse(
-      """{
-        |"bar": {
-        |    "baz": "qix"
-        |  }
-        |}""".stripMargin
-    )
+    val json = Map("bar" -> Map("baz" -> "qix"))
     val session = newSession(Map("foo" -> json))
     val expression = "${foo.bar.jsonStringify()}".el[String]
     expression(session).succeeded shouldBe """{"baz":"qix"}"""
@@ -559,5 +558,38 @@ class ElSpec extends BaseSpec with ValidationValues {
     val failedKeyAccessExpression = "${foo.bar}".el[String]
     val failedJsonStringifyExpression = "${foo.bar.jsonStringify()}".el[String]
     failedJsonStringifyExpression(session).failed shouldBe failedKeyAccessExpression(session).failed
+  }
+
+  "currentTimeMillis" should "generate a long" in {
+    val session = newSession(Map("foo" -> "bar"))
+    val currentTimeMillisExpression = "${currentTimeMillis()}".el[Long]
+    currentTimeMillisExpression(session).succeeded shouldBe a[Long]
+  }
+
+  "currentDate" should "generate a String" in {
+    val session = newSession(Map("foo" -> "bar"))
+    val pattern = "yyyy-MM-dd HH:mm:ss"
+    val currentDateExpression = s"$${currentDate($pattern)}".el[String]
+    currentDateExpression(session).succeeded.length shouldBe pattern.length
+  }
+
+  "Escaping" should "turn $${ into ${" in {
+    val session = newSession(Map("foo" -> "FOO"))
+    val expression = "$${foo}".el[String]
+    expression(session).succeeded shouldBe "${foo}"
+  }
+
+  it should "keep one $ in $$${" in {
+    val session = newSession(Map("foo" -> "FOO"))
+    val expression = "$$${foo}".el[String]
+    expression(session).succeeded shouldBe "$FOO"
+  }
+
+  it should "handle multiple escape sequences correctly" in {
+    val session = newSession(Map("foo" -> "FOO"))
+
+    "$${foo$${foo}".el[String].apply(session).succeeded shouldBe "${foo${foo}"
+    "bar$$$$${foo}$${foo}".el[String].apply(session).succeeded shouldBe "bar$$FOO${foo}"
+    "$$$${foo}$${foo}$${foo}$$${foo}".el[String].apply(session).succeeded shouldBe "$${foo}${foo}${foo}$FOO"
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,10 +28,11 @@ abstract class GatlingHttpFunSpec extends GatlingFunSpec {
   def baseUrl: String
 
   /** HTTP protocol configuration. Use this to add headers and other http configuration. */
-  def httpProtocol: HttpProtocolBuilder = http
-    .baseUrl(baseUrl)
-    .acceptHeader("application/json, text/html, text/plain, */*")
-    .acceptEncodingHeader("gzip, deflate")
+  def httpProtocol: HttpProtocolBuilder =
+    http
+      .baseUrl(baseUrl)
+      .acceptHeader("application/json, text/html, text/plain, */*")
+      .acceptEncodingHeader("gzip, deflate")
 
   override def protocolConf: Protocol = httpProtocol
 

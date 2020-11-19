@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,22 +19,16 @@ package io.gatling.http.cookie
 import io.gatling.commons.validation._
 import io.gatling.core.session.{ Session, SessionPrivateAttributes }
 import io.gatling.core.session.Expression
-import io.gatling.http.client.ahc.uri.Uri
-import io.gatling.http.util.HttpTypeCaster
+import io.gatling.http.client.uri.Uri
 
 import io.netty.handler.codec.http.cookie.Cookie
 
-object CookieSupport {
-
-  // import optimized TypeCaster
-  import HttpTypeCaster._
+private[http] object CookieSupport {
 
   val CookieJarAttributeName: String = SessionPrivateAttributes.PrivateAttributePrefix + "http.cookies"
   private val NoCookieJarFailure = "No CookieJar in session".failure
 
-  def cookieJar(session: Session): Option[CookieJar] = session(CookieJarAttributeName).asOption[CookieJar]
-
-  def getStoredCookies(session: Session, url: String): List[Cookie] = getStoredCookies(session, Uri.create(url))
+  def cookieJar(session: Session): Option[CookieJar] = session.attributes.get(CookieJarAttributeName).map(_.asInstanceOf[CookieJar])
 
   def getStoredCookies(session: Session, uri: Uri): List[Cookie] =
     cookieJar(session) match {
@@ -49,16 +43,16 @@ object CookieSupport {
     }
 
   def storeCookies(session: Session, uri: Uri, cookies: List[Cookie], nowMillis: Long): Session =
-    if (cookies.nonEmpty) {
+    if (cookies.isEmpty) {
+      session
+    } else {
       val cookieJar = getOrCreateCookieJar(session)
       session.set(CookieJarAttributeName, cookieJar.add(uri, cookies, nowMillis))
-    } else {
-      session
     }
 
   def storeCookie(session: Session, domain: String, path: String, cookie: Cookie, nowMillis: Long): Session = {
     val cookieJar = getOrCreateCookieJar(session)
-    session.set(CookieJarAttributeName, cookieJar.add(domain, path, List(cookie), nowMillis))
+    session.set(CookieJarAttributeName, cookieJar.add(domain, path, cookie :: Nil, nowMillis))
   }
 
   def getCookieValue(session: Session, domain: String, path: String, name: String, secure: Boolean): Validation[String] =
@@ -74,10 +68,10 @@ object CookieSupport {
 
   val FlushSessionCookies: Expression[Session] = session =>
     cookieJar(session) match {
-      case None => session.success
       case Some(cookieJar) =>
         val storeWithOnlyPersistentCookies = cookieJar.store.filter { case (_, storeCookie) => storeCookie.persistent }
         session.set(CookieJarAttributeName, CookieJar(storeWithOnlyPersistentCookies)).success
+      case _ => session.success
     }
 
   val FlushCookieJar: Expression[Session] = _.remove(CookieJarAttributeName).success

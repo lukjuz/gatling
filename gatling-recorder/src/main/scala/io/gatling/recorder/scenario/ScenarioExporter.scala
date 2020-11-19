@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,8 @@
 package io.gatling.recorder.scenario
 
 import java.io.{ File, IOException }
-import java.nio.file.Path
+import java.nio.file.{ Path, Paths }
+import java.util.Locale
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
@@ -25,13 +26,13 @@ import scala.collection.immutable.SortedMap
 
 import io.gatling.commons.util.Io._
 import io.gatling.commons.util.PathHelper._
+import io.gatling.commons.util.StringHelper._
 import io.gatling.commons.validation._
 import io.gatling.recorder.config.RecorderConfiguration
 import io.gatling.recorder.har._
 import io.gatling.recorder.scenario.template.SimulationTemplate
 import io.gatling.recorder.util.HttpUtils._
 
-import com.dongxiguo.fastring.Fastring.Implicits._
 import com.typesafe.scalalogging.StrictLogging
 import io.netty.handler.codec.http._
 
@@ -39,21 +40,33 @@ private[recorder] object ScenarioExporter extends StrictLogging {
 
   private val EventsGrouping = 100
 
-  def simulationFilePath(implicit config: RecorderConfiguration): Path = {
-    def getSimulationFileName: String = s"${config.core.className}.scala"
-    def getSimulationsFolder = {
-      val path = config.core.simulationsFolder + File.separator + config.core.pkg.replace(".", File.separator)
-      getFolder(path)
-    }
+  private def packageAsFolderPath(separator: String)(implicit config: RecorderConfiguration) =
+    config.core.pkg.replace(".", separator)
 
-    getSimulationsFolder / getSimulationFileName
+  private def classNameToFolderName(config: RecorderConfiguration): String =
+    config.core.className.toLowerCase(Locale.ROOT)
+
+  def simulationFilePath(implicit config: RecorderConfiguration): Path = {
+    val path = config.core.simulationsFolder + File.separator + packageAsFolderPath(File.separator)
+    getFolder(path) / s"${config.core.className}.scala"
   }
 
-  def requestBodyFileName(request: RequestElement)(implicit config: RecorderConfiguration) =
-    f"${config.core.className}_${request.id.leftPad(4, '0')}_request.txt"
+  private def resourcesFolderPath(implicit config: RecorderConfiguration): Path = {
+    val path = config.core.resourcesFolder + File.separator + packageAsFolderPath(File.separator) + File.separator + classNameToFolderName(config)
+    getFolder(path)
+  }
 
-  def responseBodyFileName(request: RequestElement)(implicit config: RecorderConfiguration) =
-    f"${config.core.className}_${request.id.leftPad(4, '0')}_response.txt"
+  private def requestBodyFileName(request: RequestElement) =
+    s"${request.id.toString.leftPad(4, "0")}_request.${request.fileExtension}"
+
+  def requestBodyRelativeFilePath(request: RequestElement)(implicit config: RecorderConfiguration): String =
+    packageAsFolderPath("/") + "/" + classNameToFolderName(config) + "/" + requestBodyFileName(request)
+
+  private def responseBodyFileName(request: RequestElement) =
+    s"${request.id.toString.leftPad(4, "0")}_response.${request.responseFileExtension}"
+
+  def responseBodyRelativeFilePath(request: RequestElement)(implicit config: RecorderConfiguration): String =
+    packageAsFolderPath("/") + "/" + classNameToFolderName(config) + "/" + responseBodyFileName(request)
 
   def exportScenario(harFilePath: String)(implicit config: RecorderConfiguration): Validation[Unit] =
     safely(error => s"Error while processing HAR file: $error") {
@@ -115,16 +128,22 @@ private[recorder] object ScenarioExporter extends StrictLogging {
     requestElements.zipWithIndex.map { case (reqEl, index) => reqEl.setId(index) }
 
     // dump request & response bodies if needed
-    requestElements.foreach(el => el.body.foreach {
-      case RequestBodyBytes(bytes) => dumpBody(requestBodyFileName(el), bytes)
-      case _                       =>
-    })
+    requestElements.foreach(
+      el =>
+        el.body.foreach {
+          case RequestBodyBytes(bytes) => dumpBody(requestBodyFileName(el), bytes)
+          case _                       =>
+        }
+    )
 
     if (config.http.checkResponseBodies) {
-      requestElements.foreach(el => el.responseBody.foreach {
-        case ResponseBodyBytes(bytes) => dumpBody(responseBodyFileName(el), bytes)
-        case _                        =>
-      })
+      requestElements.foreach(
+        el =>
+          el.responseBody.foreach {
+            case ResponseBodyBytes(bytes) => dumpBody(responseBodyFileName(el), bytes)
+            case _                        =>
+          }
+      )
     }
 
     val headers: Map[Int, Seq[(String, String)]] = {
@@ -133,12 +152,15 @@ private[recorder] object ScenarioExporter extends StrictLogging {
       def generateHeaders(elements: Seq[RequestElement], headers: Map[Int, List[(String, String)]]): Map[Int, List[(String, String)]] = elements match {
         case Seq() => headers
         case element +: others =>
-          val acceptedHeaders = element.headers.entries.asScala.map(e => e.getKey -> e.getValue).toList
+          val acceptedHeaders = element.headers.entries.asScala
+            .map(e => e.getKey -> e.getValue)
+            .toList
             .filterNot {
               case (headerName, headerValue) =>
                 val isFiltered = containsIgnoreCase(filteredHeaders, headerName) || isHttp2PseudoHeader(headerName)
                 val isAlreadyInBaseHeaders = getIgnoreCase(baseHeaders, headerName).contains(headerValue)
-                val isPostWithFormParams = element.method == HttpMethod.POST.name && HttpHeaderValues.APPLICATION_X_WWW_FORM_URLENCODED.contentEqualsIgnoreCase(headerValue)
+                val isPostWithFormParams = element.method == HttpMethod.POST.name && HttpHeaderValues.APPLICATION_X_WWW_FORM_URLENCODED
+                  .contentEqualsIgnoreCase(headerValue)
                 val isEmptyContentLength = HttpHeaderNames.CONTENT_LENGTH.contentEqualsIgnoreCase(headerName) && headerValue == "0"
                 isFiltered || isAlreadyInBaseHeaders || isPostWithFormParams || isEmptyContentLength
             }
@@ -212,7 +234,7 @@ private[recorder] object ScenarioExporter extends StrictLogging {
       Left(scenarioElements)
 
   private def dumpBody(fileName: String, content: Array[Byte])(implicit config: RecorderConfiguration): Unit = {
-    withCloseable((getFolder(config.core.resourcesFolder) / fileName).outputStream) { fw =>
+    withCloseable((resourcesFolderPath / fileName).outputStream) { fw =>
       try {
         fw.write(content)
       } catch {
@@ -220,5 +242,5 @@ private[recorder] object ScenarioExporter extends StrictLogging {
       }
     }
   }
-  private def getFolder(folderPath: String) = string2path(folderPath).mkdirs
+  private def getFolder(folderPath: String): Path = Paths.get(folderPath).mkdirs()
 }

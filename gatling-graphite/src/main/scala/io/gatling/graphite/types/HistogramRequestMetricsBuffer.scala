@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,17 +58,19 @@ class HistogramRequestMetricsBuffer(configuration: GatlingConfiguration) extends
   private def metricsOfHistogram(histogram: AbstractHistogram): Option[Metrics] = {
     val count = histogram.getTotalCount
     if (count > 0) {
-      Some(Metrics(
-        count = count,
-        min = histogram.getMinValue.toInt,
-        max = histogram.getMaxValue.toInt,
-        mean = histogram.getMean.toInt,
-        stdDev = histogram.getStdDeviation.toInt,
-        percentile1 = histogram.getValueAtPercentile(percentile1).toInt,
-        percentile2 = histogram.getValueAtPercentile(percentile2).toInt,
-        percentile3 = histogram.getValueAtPercentile(percentile3).toInt,
-        percentile4 = histogram.getValueAtPercentile(percentile4).toInt
-      ))
+      Some(
+        Metrics(
+          count = count,
+          min = histogram.getMinValue.toInt,
+          max = histogram.getMaxValue.toInt,
+          mean = histogram.getMean.toInt,
+          stdDev = histogram.getStdDeviation.toInt,
+          percentile1 = histogram.getValueAtPercentile(percentile1).toInt,
+          percentile2 = histogram.getValueAtPercentile(percentile2).toInt,
+          percentile3 = histogram.getValueAtPercentile(percentile3).toInt,
+          percentile4 = histogram.getValueAtPercentile(percentile4).toInt
+        )
+      )
     } else
       None
   }

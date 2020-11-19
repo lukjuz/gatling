@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,35 +16,41 @@
 
 package io.gatling.core.json
 
-import java.io.InputStream
+import java.io.{ InputStream, InputStreamReader }
 import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets.{ UTF_16, UTF_8 }
 
+import io.gatling.commons.util.NonStandardCharsets.UTF_32
 import io.gatling.commons.validation._
-import io.gatling.core.config.GatlingConfiguration
+
+import com.fasterxml.jackson.databind.{ JsonNode, ObjectMapper }
 
 object JsonParsers {
 
-  def apply()(implicit configuration: GatlingConfiguration) =
-    new JsonParsers(Jackson(), new JoddJson, configuration.core.extract.jsonPath.preferJackson)
+  private val JacksonErrorMapper: String => String = "Jackson failed to parse into a valid AST: " + _
+  private val JsonSupportedEncodings = Set(UTF_8, UTF_16, UTF_32)
 }
 
-case class JsonParsers(jackson: Jackson, jodd: JoddJson, preferJackson: Boolean) {
+class JsonParsers {
 
-  private val JacksonErrorMapper: String => String = "Jackson failed to parse into a valid AST: " + _
-  private val JoddErrorMapper: String => String = "Jodd failed to parse into a valid AST: " + _
+  import JsonParsers._
 
-  private def safeParseJackson(string: String): Validation[Object] =
-    safely(JacksonErrorMapper)(jackson.parse(string).success)
+  private val objectMapper = new ObjectMapper
 
-  def safeParseJackson(is: InputStream, charset: Charset): Validation[Object] =
-    safely(JacksonErrorMapper)(jackson.parse(is, charset).success)
+  def parse(is: InputStream, charset: Charset): JsonNode =
+    if (JsonParsers.JsonSupportedEncodings.contains(charset)) {
+      objectMapper.readValue(is, classOf[JsonNode])
+    } else {
+      val reader = new InputStreamReader(is, charset)
+      objectMapper.readValue(reader, classOf[JsonNode])
+    }
 
-  def safeParseJodd(string: String): Validation[Object] =
-    safely(JoddErrorMapper)(jodd.parse(string).success)
+  def safeParse(is: InputStream, charset: Charset): Validation[JsonNode] =
+    safely(JacksonErrorMapper)(parse(is, charset).success)
 
-  def safeParse(string: String): Validation[Object] =
-    if (preferJackson)
-      safeParseJackson(string)
-    else
-      safeParseJodd(string)
+  def parse(string: String): JsonNode =
+    objectMapper.readValue(string, classOf[JsonNode])
+
+  def safeParse(string: String): Validation[JsonNode] =
+    safely(JacksonErrorMapper)(parse(string).success)
 }

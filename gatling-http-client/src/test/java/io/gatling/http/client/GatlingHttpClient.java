@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,47 +17,65 @@
 package io.gatling.http.client;
 
 import io.gatling.http.client.impl.DefaultHttpClient;
+import io.gatling.http.client.resolver.InetAddressNameResolver;
+import io.gatling.http.client.resolver.InetAddressNameResolverWrapper;
+import io.gatling.http.client.uri.Uri;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioDatagramChannel;
-import io.netty.resolver.InetNameResolver;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.resolver.dns.DnsNameResolverBuilder;
+import io.netty.util.concurrent.DefaultThreadFactory;
+
+import javax.net.ssl.SSLException;
 
 // FIXME remove
 public class GatlingHttpClient implements AutoCloseable {
 
+  private final SslContext sslContext;
   protected final HttpClient client;
-  private final NioEventLoopGroup nameResolverEventLoopGroup;
-  private final InetNameResolver nameResolver; // would be per request in Gatling
+  private final EventLoopGroup eventLoopGroup;
+  private final InetAddressNameResolver nameResolver; // would be per request in Gatling
 
   public GatlingHttpClient(HttpClientConfig config) {
     this.client = new DefaultHttpClient(config);
+    DefaultThreadFactory threadFactory = new DefaultThreadFactory(config.getThreadPoolName());
+    eventLoopGroup = config.isUseNativeTransport() ? new EpollEventLoopGroup(0, threadFactory) : new NioEventLoopGroup(0, threadFactory);
+    try {
+      sslContext = SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
+    } catch (SSLException e) {
+      throw new ExceptionInInitializerError(e);
+    }
 
-    this.nameResolverEventLoopGroup = new NioEventLoopGroup(1);
-    this.nameResolver = new DnsNameResolverBuilder(nameResolverEventLoopGroup.next())
-            .channelFactory(NioDatagramChannel::new)
-            .build();
+    this.nameResolver = new InetAddressNameResolverWrapper(
+      new DnsNameResolverBuilder(eventLoopGroup.next())
+        .channelFactory(NioDatagramChannel::new)
+        .build()
+    );
   }
 
   public void execute(Request request, long clientId, boolean shared, HttpListener listener) {
     if (request.getNameResolver() == null) {
       // hack: patch request with name resolver
       request = new RequestBuilder(request, request.getUri())
-        .setNameResolver(nameResolver)
-        .setFixUrlEncoding(false)
         .build();
     }
 
-    client.sendRequest(request, clientId, shared, listener, null, null);
+    client.sendRequest(request, shared ? - 1 : clientId, eventLoopGroup.next(), listener, sslContext, null);
   }
 
-  public InetNameResolver getNameResolver() {
-    return nameResolver;
+  public RequestBuilder newRequestBuilder(HttpMethod method, Uri uri) {
+    return new RequestBuilder(method, uri, nameResolver);
   }
 
   @Override
   public void close() throws Exception {
     client.close();
     nameResolver.close();
-    nameResolverEventLoopGroup.shutdownGracefully();
+    eventLoopGroup.shutdownGracefully();
   }
 }

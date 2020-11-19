@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package io.gatling.http.client;
 
 import io.gatling.http.client.test.DefaultResponse;
 import io.gatling.http.client.test.listener.ResponseAsStringListener;
-import io.gatling.http.client.ahc.uri.Uri;
+import io.gatling.http.client.uri.Uri;
 import io.netty.handler.codec.http.HttpMethod;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,8 +33,7 @@ public class MultipleRequestsMain {
 
     try (GatlingHttpClient client = new GatlingHttpClient(new HttpClientConfig())) {
 
-      Request request = new RequestBuilder(HttpMethod.GET, Uri.create("https://gatling.io"))
-        .setNameResolver(client.getNameResolver())
+      Request request = client.newRequestBuilder(HttpMethod.GET, Uri.create("https://gatling.io"))
         .setRequestTimeout(1000)
         .build();
 
@@ -42,7 +41,7 @@ public class MultipleRequestsMain {
       client.execute(request, 0, true, new ResponseAsStringListener() {
         @Override
         public void onComplete() {
-          LOGGER.debug(new DefaultResponse<>(status, headers, responseBody()).toString());
+          LOGGER.info(new DefaultResponse<>(status, headers, responseBody()).toString());
           latch1.countDown();
         }
 
@@ -58,7 +57,7 @@ public class MultipleRequestsMain {
       client.execute(request, 0, true, new ResponseAsStringListener() {
         @Override
         public void onComplete() {
-          LOGGER.debug(new DefaultResponse<>(status, headers, responseBody()).toString());
+          LOGGER.info(new DefaultResponse<>(status, headers, responseBody()).toString());
           latch2.countDown();
         }
 

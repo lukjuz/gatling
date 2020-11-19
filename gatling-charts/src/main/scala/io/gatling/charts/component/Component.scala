@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,11 @@
 
 package io.gatling.charts.component
 
-import com.dongxiguo.fastring.Fastring
-
 private[gatling] trait Component {
 
-  def html: Fastring
+  def html: String
 
-  def js: Fastring
+  def js: String
 
   def jsFiles: Seq[String]
 }

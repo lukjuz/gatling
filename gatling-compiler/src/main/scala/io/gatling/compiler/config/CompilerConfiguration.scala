@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,11 +25,11 @@ import io.gatling.compiler.config.cli.{ ArgsParser, CommandLineOverrides }
 
 import com.typesafe.config.ConfigFactory
 
-private[compiler] case class CompilerConfiguration(
-    encoding:             String,
+private[compiler] final case class CompilerConfiguration(
+    encoding: String,
     simulationsDirectory: Path,
-    binariesDirectory:    Path,
-    extraScalacOptions:   Seq[String]
+    binariesDirectory: Path,
+    extraScalacOptions: Seq[String]
 )
 
 private[compiler] object CompilerConfiguration {

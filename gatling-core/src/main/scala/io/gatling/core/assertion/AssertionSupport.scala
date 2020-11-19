@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,9 +24,10 @@ trait AssertionSupport {
   implicit def string2PathParts(string: String): AssertionPathParts =
     AssertionPathParts.string2PathParts(string)
 
-  def global(implicit configuration: GatlingConfiguration) = new AssertionWithPath(Global)
+  def global(implicit configuration: GatlingConfiguration): AssertionWithPath = new AssertionWithPath(Global, configuration)
 
-  def forAll(implicit configuration: GatlingConfiguration) = new AssertionWithPath(ForAll)
+  def forAll(implicit configuration: GatlingConfiguration): AssertionWithPath = new AssertionWithPath(ForAll, configuration)
 
-  def details(pathParts: AssertionPathParts)(implicit configuration: GatlingConfiguration) = new AssertionWithPath(Details(pathParts.parts))
+  def details(pathParts: AssertionPathParts)(implicit configuration: GatlingConfiguration): AssertionWithPath =
+    new AssertionWithPath(Details(pathParts.parts), configuration)
 }

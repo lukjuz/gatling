@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,12 @@ package io.gatling.recorder.model
 
 import io.netty.handler.codec.http.HttpHeaders
 
-case class HttpRequest(
+@SuppressWarnings(Array("org.wartremover.warts.ArrayEquals"))
+final case class HttpRequest(
     httpVersion: String,
-    method:      String,
-    uri:         String,
-    headers:     HttpHeaders,
-    body:        Array[Byte],
-    timestamp:   Long
+    method: String,
+    uri: String,
+    headers: HttpHeaders,
+    body: Array[Byte],
+    timestamp: Long
 )

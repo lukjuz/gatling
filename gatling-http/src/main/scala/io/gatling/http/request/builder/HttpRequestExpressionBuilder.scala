@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,61 +22,66 @@ import io.gatling.commons.validation._
 import io.gatling.core.body._
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session._
-import io.gatling.core.util.FileResource
-import io.gatling.http.HeaderNames
-import io.gatling.http.cache.{ ContentCacheEntry, HttpCaches }
+import io.gatling.http.cache.{ ContentCacheEntry, Http2PriorKnowledgeSupport, HttpCaches }
+import io.gatling.http.client.{ Request, RequestBuilder => ClientRequestBuilder }
 import io.gatling.http.client.body.bytearray.ByteArrayRequestBodyBuilder
-import io.gatling.http.client.body.bytearrays.ByteArraysRequestBodyBuilder
 import io.gatling.http.client.body.file.FileRequestBodyBuilder
 import io.gatling.http.client.body.form.FormUrlEncodedRequestBodyBuilder
 import io.gatling.http.client.body.is.InputStreamRequestBodyBuilder
-import io.gatling.http.client.body.multipart.{ MultipartFormDataRequestBodyBuilder, StringPart }
+import io.gatling.http.client.body.multipart.{ MultipartFormDataRequestBodyBuilder, Part, StringPart }
 import io.gatling.http.client.body.string.StringRequestBodyBuilder
-import io.gatling.http.client.{ Request, RequestBuilder => AhcRequestBuilder }
+import io.gatling.http.client.body.stringchunks.StringChunksRequestBodyBuilder
 import io.gatling.http.protocol.{ HttpProtocol, Remote }
 import io.gatling.http.request.BodyPart
 
+import io.netty.handler.codec.http.HttpHeaderNames
+
+object HttpRequestExpressionBuilder {
+
+  private val bodyPartsToMultipartsZero = List.empty[Part[_]].success
+
+  private def bodyPartsToMultiparts(bodyParts: List[BodyPart], session: Session): Validation[List[Part[_]]] =
+    bodyParts.foldLeft(bodyPartsToMultipartsZero) { (acc, bodyPart) =>
+      for {
+        accValue <- acc
+        value <- bodyPart.toMultiPart(session)
+      } yield accValue :+ value
+    }
+}
+
 class HttpRequestExpressionBuilder(
     commonAttributes: CommonAttributes,
-    httpAttributes:   HttpAttributes,
-    httpCaches:       HttpCaches,
-    httpProtocol:     HttpProtocol,
-    configuration:    GatlingConfiguration
-)
-  extends RequestExpressionBuilder(commonAttributes, httpCaches, httpProtocol, configuration) {
+    httpAttributes: HttpAttributes,
+    httpCaches: HttpCaches,
+    httpProtocol: HttpProtocol,
+    configuration: GatlingConfiguration
+) extends RequestExpressionBuilder(commonAttributes, httpCaches, httpProtocol, configuration) {
 
   import RequestExpressionBuilder._
 
-  private val ConfigureFormParams: RequestBuilderConfigure =
-    session => requestBuilder => httpAttributes.formParams.mergeWithFormIntoParamJList(httpAttributes.form, session).map { resolvedFormParams =>
-      requestBuilder.setBodyBuilder(new FormUrlEncodedRequestBodyBuilder(resolvedFormParams))
-    }
-
-  private def configureBodyParts(session: Session, requestBuilder: AhcRequestBuilder, bodyParts: List[BodyPart]): Validation[AhcRequestBuilder] =
+  private def configureBodyParts(session: Session, requestBuilder: ClientRequestBuilder, bodyParts: List[BodyPart]): Validation[ClientRequestBuilder] =
     for {
       params <- httpAttributes.formParams.mergeWithFormIntoParamJList(httpAttributes.form, session)
-      stringParts = params.asScala.map(param => new StringPart(param.getName, param.getValue, charset, null, null, null, null))
-      parts <- Validation.sequence(bodyParts.map(_.toMultiPart(session)))
-    } yield requestBuilder.setBodyBuilder(new MultipartFormDataRequestBodyBuilder((parts ++ stringParts).asJava))
+      stringParts = params.asScala.map(param => new StringPart(param.getName, param.getValue, charset, null, null, null, null, null))
+      parts <- HttpRequestExpressionBuilder.bodyPartsToMultiparts(bodyParts, session)
+    } yield requestBuilder.setBodyBuilder(new MultipartFormDataRequestBodyBuilder((stringParts ++ parts).asJava))
 
-  private def setBody(session: Session, requestBuilder: AhcRequestBuilder, body: Body): Validation[AhcRequestBuilder] =
+  private def setBody(session: Session, requestBuilder: ClientRequestBuilder, body: Body): Validation[ClientRequestBuilder] =
     body match {
-      case StringBody(string) => string(session).map(s => requestBuilder.setBodyBuilder(new StringRequestBodyBuilder(s)))
-      case RawFileBody(resourceWithCachedBytes) => resourceWithCachedBytes(session).map {
-        case ResourceAndCachedBytes(resource, cachedBytes) =>
-          cachedBytes match {
-            case Some(bytes) => requestBuilder.setBodyBuilder(new ByteArrayRequestBodyBuilder(bytes))
-            case None =>
-              resource match {
-                case FileResource(file) => requestBuilder.setBodyBuilder(new FileRequestBodyBuilder(file))
-                case _                  => requestBuilder.setBodyBuilder(new ByteArrayRequestBodyBuilder(resource.bytes))
-              }
-          }
-      }
-      case ByteArrayBody(bytes)                  => bytes(session).map(b => requestBuilder.setBodyBuilder(new ByteArrayRequestBodyBuilder(b)))
-      case CompositeByteArrayBody(byteArrays, _) => byteArrays(session).map(bs => requestBuilder.setBodyBuilder(new ByteArraysRequestBodyBuilder(bs.toArray)))
-      case InputStreamBody(is)                   => is(session).map(is => requestBuilder.setBodyBuilder(new InputStreamRequestBodyBuilder(is)))
-      case body: PebbleBody                      => body.apply(session).map(s => requestBuilder.setBodyBuilder(new StringRequestBodyBuilder(s)))
+      case StringBody(string, _) => string(session).map(s => requestBuilder.setBodyBuilder(new StringRequestBodyBuilder(s)))
+      case RawFileBody(resourceWithCachedBytes) =>
+        resourceWithCachedBytes(session).map {
+          case ResourceAndCachedBytes(resource, cachedBytes) =>
+            val requestBodyBuilder = cachedBytes match {
+              case Some(bytes) => new ByteArrayRequestBodyBuilder(bytes, resource.name)
+              case _           => new FileRequestBodyBuilder(resource.file)
+            }
+            requestBuilder.setBodyBuilder(requestBodyBuilder)
+        }
+      case ByteArrayBody(bytes) => bytes(session).map(b => requestBuilder.setBodyBuilder(new ByteArrayRequestBodyBuilder(b, null)))
+      case body: ElBody         => body.asStringWithCachedBytes(session).map(chunks => requestBuilder.setBodyBuilder(new StringChunksRequestBodyBuilder(chunks.asJava)))
+      case InputStreamBody(is)  => is(session).map(is => requestBuilder.setBodyBuilder(new InputStreamRequestBodyBuilder(is)))
+      case body: PebbleBody     => body.apply(session).map(s => requestBuilder.setBodyBuilder(new StringRequestBodyBuilder(s)))
     }
 
   private val configureBody: RequestBuilderConfigure = {
@@ -85,9 +90,14 @@ class HttpRequestExpressionBuilder(
     httpAttributes.body match {
       case Some(body) => session => requestBuilder => setBody(session, requestBuilder, body)
       case _ =>
-        if (httpAttributes.bodyParts.nonEmpty) { session => requestBuilder => configureBodyParts(session, requestBuilder, httpAttributes.bodyParts)
-        } else if (httpAttributes.formParams.nonEmpty || httpAttributes.form.nonEmpty) {
-          ConfigureFormParams
+        if (httpAttributes.bodyParts.nonEmpty) { session => requestBuilder =>
+          configureBodyParts(session, requestBuilder, httpAttributes.bodyParts)
+        } else if (httpAttributes.formParams.nonEmpty || httpAttributes.form.nonEmpty) { session => requestBuilder =>
+          httpAttributes.formParams
+            .mergeWithFormIntoParamJList(httpAttributes.form, session)
+            .map { resolvedFormParams =>
+              requestBuilder.setBodyBuilder(new FormUrlEncodedRequestBodyBuilder(resolvedFormParams))
+            }
         } else {
           ConfigureIdentity
         }
@@ -96,7 +106,7 @@ class HttpRequestExpressionBuilder(
 
   private val configurePriorKnowledge: RequestBuilderConfigure = {
     if (httpProtocol.enginePart.enableHttp2) { session => requestBuilder =>
-      val http2PriorKnowledge = httpCaches.isHttp2PriorKnowledge(session, Remote(requestBuilder.getUri))
+      val http2PriorKnowledge = Http2PriorKnowledgeSupport.isHttp2PriorKnowledge(session, Remote(requestBuilder.getUri))
       requestBuilder
         .setHttp2Enabled(true)
         .setAlpnRequired(http2PriorKnowledge.forall(_ == true)) // ALPN is necessary only if we know that this remote is using HTTP/2 or if we still don't know
@@ -107,16 +117,20 @@ class HttpRequestExpressionBuilder(
     }
   }
 
-  override protected def configureRequestBuilder(session: Session, requestBuilder: AhcRequestBuilder): Validation[AhcRequestBuilder] =
-    super.configureRequestBuilder(session, requestBuilder)
-      .flatMap(configureBody(session))
-      .flatMap(configurePriorKnowledge(session))
+  override protected def configureRequestTimeout(requestBuilder: ClientRequestBuilder): Unit =
+    requestBuilder.setRequestTimeout(httpAttributes.requestTimeout.getOrElse(configuration.http.requestTimeout).toMillis)
+
+  override protected def configureRequestBuilderForProtocol: RequestBuilderConfigure =
+    session =>
+      requestBuilder =>
+        configureBody(session)(requestBuilder)
+          .flatMap(configurePriorKnowledge(session))
 
   private def configureCachingHeaders(session: Session)(request: Request): Request = {
     httpCaches.contentCacheEntry(session, request).foreach {
       case ContentCacheEntry(_, etag, lastModified) =>
-        etag.foreach(request.getHeaders.set(HeaderNames.IfNoneMatch, _))
-        lastModified.foreach(request.getHeaders.set(HeaderNames.IfModifiedSince, _))
+        etag.foreach(request.getHeaders.set(HttpHeaderNames.IF_NONE_MATCH, _))
+        lastModified.foreach(request.getHeaders.set(HttpHeaderNames.IF_MODIFIED_SINCE, _))
     }
     request
   }
@@ -124,8 +138,8 @@ class HttpRequestExpressionBuilder(
   // hack because we need the request with the final uri
   override def build: Expression[Request] = {
     val exp = super.build
-    if (httpProtocol.requestPart.cache) {
-      session => exp(session).map(configureCachingHeaders(session))
+    if (httpProtocol.requestPart.cache) { session =>
+      exp(session).map(configureCachingHeaders(session))
     } else {
       exp
     }

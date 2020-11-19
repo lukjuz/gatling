@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ object GatlingRecorder {
     argsParser.parseArguments.map(overrides => initRecorder(overrides, None))
   }
 
-  def fromMap(props: ConfigOverrides, recorderConfigFile: Option[Path] = None): RecorderController =
+  def fromMap(props: ConfigOverrides, recorderConfigFile: Option[Path]): RecorderController =
     initRecorder(props, recorderConfigFile)
 
   private def initRecorder(props: ConfigOverrides, recorderConfigFile: Option[Path]) = {

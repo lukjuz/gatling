@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package io.gatling.core.controller
 
 import scala.util.{ Failure, Success, Try }
 
-import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.controller.inject.InjectorCommand
 import io.gatling.core.controller.throttle.Throttler
 import io.gatling.core.scenario.SimulationParams
@@ -30,19 +29,23 @@ object Controller {
 
   val ControllerActorName = "gatling-controller"
 
-  def props(statsEngine: StatsEngine, injector: ActorRef, throttler: Throttler, simulationParams: SimulationParams, configuration: GatlingConfiguration) =
-    Props(new Controller(statsEngine, injector, throttler, simulationParams, configuration))
+  def props(
+      statsEngine: StatsEngine,
+      injector: ActorRef,
+      throttler: Option[Throttler],
+      simulationParams: SimulationParams
+  ): Props =
+    Props(new Controller(statsEngine, injector, throttler, simulationParams))
 
   def controllerSelection(system: ActorSystem): ActorSelection =
     system.actorSelection("/user/" + ControllerActorName)
 }
 
-class Controller(statsEngine: StatsEngine, injector: ActorRef, throttler: Throttler, simulationParams: SimulationParams, configuration: GatlingConfiguration)
-  extends ControllerFSM {
+class Controller(statsEngine: StatsEngine, injector: ActorRef, throttler: Option[Throttler], simulationParams: SimulationParams) extends ControllerFSM {
 
-  import ControllerState._
-  import ControllerData._
   import ControllerCommand._
+  import ControllerData._
+  import ControllerState._
 
   val maxDurationTimer = "maxDurationTimer"
 
@@ -54,10 +57,10 @@ class Controller(statsEngine: StatsEngine, injector: ActorRef, throttler: Thrott
 
       simulationParams.maxDuration.foreach { maxDuration =>
         logger.debug("Setting up max duration")
-        setTimer(maxDurationTimer, MaxDurationReached(maxDuration), maxDuration)
+        startSingleTimer(maxDurationTimer, MaxDurationReached(maxDuration), maxDuration)
       }
 
-      throttler.start()
+      throttler.foreach(_.start())
       statsEngine.start()
       injector ! InjectorCommand.Start(self, initData.scenarios)
 
@@ -79,7 +82,7 @@ class Controller(statsEngine: StatsEngine, injector: ActorRef, throttler: Thrott
       stopGracefully(data, Some(exception))
 
     case Event(Kill, StartedData(initData)) =>
-      logger.error("Simulation was killed")
+      logger.info("Simulation was killed")
       stop(EndData(initData, None))
   }
 

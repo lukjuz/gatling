@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,25 +22,25 @@ import com.softwaremill.quicklens._
 
 object ProxyBuilder {
 
-  def apply(host: String, port: Int): ProxyBuilder = new ProxyBuilder(Proxy(host, port, port, HttpProxy))
+  def apply(host: String, port: Int): ProxyBuilder = new ProxyBuilder(Proxy(host, port, port, HttpProxy, None))
 
   implicit def toProxy(proxyBuilder: ProxyBuilder): Proxy = proxyBuilder.proxy
 }
 
-case class ProxyBuilder(proxy: Proxy) {
+final class ProxyBuilder(val proxy: Proxy) {
 
   def http: ProxyBuilder =
-    this.modify(_.proxy.proxyType).setTo(HttpProxy)
+    new ProxyBuilder(proxy.modify(_.proxyType).setTo(HttpProxy))
 
   def socks4: ProxyBuilder =
-    this.modify(_.proxy.proxyType).setTo(Socks4Proxy)
+    new ProxyBuilder(proxy.modify(_.proxyType).setTo(Socks4Proxy))
 
   def socks5: ProxyBuilder =
-    this.modify(_.proxy.proxyType).setTo(Socks5Proxy)
+    new ProxyBuilder(proxy.modify(_.proxyType).setTo(Socks5Proxy))
 
   def httpsPort(port: Int): ProxyBuilder =
-    this.modify(_.proxy.securePort).setTo(port)
+    new ProxyBuilder(proxy.modify(_.securePort).setTo(port))
 
   def credentials(username: String, password: String): ProxyBuilder =
-    this.modify(_.proxy.credentials).setTo(Some(Credentials(username, password)))
+    new ProxyBuilder(proxy.modify(_.credentials).setTo(Some(Credentials(username, password))))
 }

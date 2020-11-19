@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,15 +16,15 @@
 
 package io.gatling.http.check.body
 
-import io.gatling.core.check._
-import io.gatling.core.check.extractor.bytes.BodyBytesCheckType
-import io.gatling.http.check.HttpCheck
-import io.gatling.http.check.HttpCheckBuilders._
+import io.gatling.core.check.CheckMaterializer
+import io.gatling.core.check.bytes.BodyBytesCheckType
+import io.gatling.http.check.{ HttpCheck, HttpCheckMaterializer }
+import io.gatling.http.check.HttpCheckBuilders.ResponseBodyBytesPreparer
+import io.gatling.http.check.HttpCheckScope.Body
 import io.gatling.http.response.Response
 
-object HttpBodyBytesCheckMaterializer extends CheckMaterializer[BodyBytesCheckType, HttpCheck, Response, Array[Byte]] {
+object HttpBodyBytesCheckMaterializer {
 
-  override protected val specializer: Specializer[HttpCheck, Response] = BytesBodySpecializer
-
-  override protected val preparer: Preparer[Response, Array[Byte]] = ResponseBodyBytesPreparer
+  val Instance: CheckMaterializer[BodyBytesCheckType, HttpCheck, Response, Array[Byte]] =
+    new HttpCheckMaterializer[BodyBytesCheckType, Array[Byte]](Body, ResponseBodyBytesPreparer)
 }

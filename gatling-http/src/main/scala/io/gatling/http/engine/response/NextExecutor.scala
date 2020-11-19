@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package io.gatling.http.engine.response
 
 import io.gatling.commons.stats.{ KO, Status }
-import io.gatling.commons.util.Clock
 import io.gatling.core.session.Session
 import io.gatling.core.util.NameGen
 import io.gatling.http.engine.tx.{ HttpTx, HttpTxExecutor, ResourceTx }
@@ -28,43 +27,51 @@ import io.gatling.http.util.HttpHelper.isCss
 trait NextExecutor {
 
   def executeNext(session: Session, status: Status, response: Response): Unit
-  def executeNextOnCrash(session: Session, endTimestamp: Long): Unit
+  def executeNextOnCrash(session: Session): Unit
   def executeRedirect(redirectTx: HttpTx): Unit
 }
 
 class RootNextExecutor(
-    tx:              HttpTx,
-    clock:           Clock,
+    tx: HttpTx,
     resourceFetcher: ResourceFetcher,
-    httpTxExecutor:  HttpTxExecutor
-) extends NextExecutor with NameGen {
+    httpTxExecutor: HttpTxExecutor
+) extends NextExecutor
+    with NameGen {
 
   override def executeNext(session: Session, status: Status, response: Response): Unit =
     resourceFetcher.newResourceAggregatorForFetchedPage(response, tx.copy(session = session), status) match {
       case Some(resourceFetcherActor) => resourceFetcherActor.start(session)
-      case _                          => tx.next ! session.increaseDrift(clock.nowMillis - response.endTimestamp)
+      case _                          => tx.next ! session
     }
 
-  override def executeNextOnCrash(session: Session, endTimestamp: Long): Unit =
-    tx.next ! session.increaseDrift(clock.nowMillis - endTimestamp)
+  override def executeNextOnCrash(session: Session): Unit =
+    tx.next ! session
 
   override def executeRedirect(redirectTx: HttpTx): Unit =
     httpTxExecutor.execute(redirectTx)
 }
 
 class ResourceNextExecutor(
-    tx:         HttpTx,
+    tx: HttpTx,
     resourceTx: ResourceTx
 ) extends NextExecutor {
 
   override def executeNext(session: Session, status: Status, response: Response): Unit =
     if (isCss(response.headers)) {
-      resourceTx.aggregator.onCssResourceFetched(resourceTx.uri, status, session, tx.silent, response.status, response.lastModifiedOrEtag(tx.request.requestConfig.httpProtocol), response.body.string)
+      resourceTx.aggregator.onCssResourceFetched(
+        resourceTx.uri,
+        status,
+        session,
+        tx.silent,
+        response.status,
+        response.lastModifiedOrEtag(tx.request.requestConfig.httpProtocol),
+        response.body.string
+      )
     } else {
       resourceTx.aggregator.onRegularResourceFetched(resourceTx.uri, status, session, tx.silent)
     }
 
-  override def executeNextOnCrash(session: Session, endTimestamp: Long): Unit =
+  override def executeNextOnCrash(session: Session): Unit =
     resourceTx.aggregator.onRegularResourceFetched(resourceTx.uri, KO, session, tx.silent)
 
   override def executeRedirect(redirectTx: HttpTx): Unit =

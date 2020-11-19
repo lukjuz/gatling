@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,14 +25,16 @@ import com.typesafe.scalalogging.StrictLogging
 
 package object validation extends StrictLogging {
 
-  val TrueSuccess = true.success
-  val FalseSuccess = false.success
-  val NoneSuccess = None.success
-  val NullStringSuccess = "null".success
+  val TrueSuccess: Validation[Boolean] = true.success
+  val FalseSuccess: Validation[Boolean] = false.success
+  val NoneSuccess: Validation[None.type] = None.success
+  val NullStringSuccess: Validation[String] = "null".success
 
+  @SuppressWarnings(Array("org.wartremover.warts.DefaultArguments"))
   def safely[T](errorMapper: String => String = identity)(f: => Validation[T]): Validation[T] =
-    try { f }
-    catch {
+    try {
+      f
+    } catch {
       case NonFatal(e) =>
         val message = errorMapper(e.detailedMessage)
         logger.info(message, e)
@@ -44,7 +46,7 @@ package object validation extends StrictLogging {
   }
 
   implicit class FailureWrapper(val message: String) extends AnyVal {
-    def failure = Failure(message)
+    def failure: Failure = Failure(message)
   }
 
   implicit class OptionWrapper[T](val option: Option[T]) extends AnyVal {

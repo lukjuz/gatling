@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@ import io.netty.handler.codec.http.HttpHeaderValues;
 import java.nio.charset.Charset;
 import java.util.List;
 
-import static io.gatling.http.client.ahc.util.HttpUtils.computeMultipartBoundary;
-import static io.gatling.http.client.ahc.util.HttpUtils.extractContentTypeBoundaryAttribute;
-import static io.gatling.http.client.ahc.util.HttpUtils.patchContentTypeWithBoundaryAttribute;
-import static io.gatling.http.client.ahc.util.MiscUtils.withDefault;
+import static io.gatling.http.client.util.HttpUtils.computeMultipartBoundary;
+import static io.gatling.http.client.util.HttpUtils.extractContentTypeBoundaryAttribute;
+import static io.gatling.http.client.util.HttpUtils.patchContentTypeWithBoundaryAttribute;
+import static io.gatling.http.client.util.MiscUtils.withDefault;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 
 public class MultipartFormDataRequestBodyBuilder extends RequestBodyBuilder<List<Part<?>>> {
@@ -36,7 +36,7 @@ public class MultipartFormDataRequestBodyBuilder extends RequestBodyBuilder<List
   }
 
   @Override
-  public RequestBody<List<Part<?>>> build(String contentType, Charset charset) {
+  public RequestBody<List<Part<?>>> build(String contentType, Charset charset, Charset defaultCharset) {
 
     byte[] boundary;
     String contentTypeBoundaryAttribute = extractContentTypeBoundaryAttribute(contentType);
@@ -47,6 +47,6 @@ public class MultipartFormDataRequestBodyBuilder extends RequestBodyBuilder<List
       contentType = patchContentTypeWithBoundaryAttribute(withDefault(contentType, HttpHeaderValues.MULTIPART_FORM_DATA), boundary);
     }
 
-    return new MultipartFormDataRequestBody(content, contentType, charset, boundary);
+    return new MultipartFormDataRequestBody(content, contentType, boundary);
   }
 }

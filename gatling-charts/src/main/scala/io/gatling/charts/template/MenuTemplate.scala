@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,10 @@
 
 package io.gatling.charts.template
 
-import com.dongxiguo.fastring.Fastring.Implicits._
-
 import io.gatling.charts.report.Container.{ Group, Request }
 
 private[charts] class MenuTemplate {
-  def getOutput: Fastring = fast"""	
+  def getOutput: String = s"""
 function getItemLink(item){
 	return item.pathFormatted + '.html';
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,40 +18,35 @@ package io.gatling.core.feeder
 
 import java.io.InputStream
 import java.net.URL
-import java.util.{ Collection => JCollection, Map => JMap }
+import java.nio.charset.Charset
 
 import scala.collection._
 import scala.collection.JavaConverters._
 
 import io.gatling.commons.util.Io._
-import io.gatling.core.json.JsonParsers
+import io.gatling.core.json.{ Json, JsonParsers }
 import io.gatling.core.util.Resource
 
-class JsonFeederFileParser(implicit jsonParsers: JsonParsers) {
+class JsonFeederFileParser(jsonParsers: JsonParsers) {
 
-  def parse(resource: Resource): IndexedSeq[Record[Any]] =
+  def parse(resource: Resource, charset: Charset): IndexedSeq[Record[Any]] =
     withCloseable(resource.inputStream) { is =>
-      stream(is).toVector
+      stream(is, charset).toVector
     }
 
-  def url(url: String): IndexedSeq[Record[Any]] =
+  def url(url: String, charset: Charset): IndexedSeq[Record[Any]] =
     withCloseable(new URL(url).openStream) { is =>
-      stream(is).toVector
+      stream(is, charset).toVector
     }
 
-  def stream(is: InputStream): Iterator[Record[Any]] = {
-
-    jsonParsers.jackson.parse(is) match {
-
-      case array: JCollection[_] =>
-
-        array.iterator.asScala.collect {
-          case element: JMap[_, _] =>
-            // type erasure I love u
-            element.asInstanceOf[JMap[String, _]].asScala.toMap
-        }
-
-      case _ => throw new IllegalArgumentException("Root element of JSON feeder file isn't an array")
+  def stream(is: InputStream, charset: Charset): Iterator[Record[Any]] = {
+    val node = jsonParsers.parse(is, charset)
+    if (node.isArray) {
+      node.elements.asScala.collect {
+        case node if node.isObject => Json.asScala(node).asInstanceOf[collection.immutable.Map[String, Any]]
+      }
+    } else {
+      throw new IllegalArgumentException("Root element of JSON feeder file isn't an array")
     }
   }
 }

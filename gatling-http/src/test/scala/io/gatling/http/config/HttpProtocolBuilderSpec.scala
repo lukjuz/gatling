@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,24 +17,12 @@
 package io.gatling.http.config
 
 import io.gatling.BaseSpec
-import io.gatling.commons.util.DefaultClock
-import io.gatling.core.CoreComponents
-import io.gatling.http.cache.HttpCaches
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.http.engine.HttpEngine
 import io.gatling.http.protocol.{ HttpProtocol, HttpProtocolBuilder }
-
-import org.mockito.Mockito.when
 
 class HttpProtocolBuilderSpec extends BaseSpec {
 
-  val configuration = GatlingConfiguration.loadForTest()
-  val coreComponents = mock[CoreComponents]
-  when(coreComponents.configuration).thenReturn(configuration)
-  when(coreComponents.clock).thenReturn(new DefaultClock)
-  val httpCaches = new HttpCaches(coreComponents)
-  val httpEngine = mock[HttpEngine]
-  val httpProtocolBuilder = HttpProtocolBuilder(configuration)
+  private val httpProtocolBuilder = HttpProtocolBuilder(GatlingConfiguration.loadForTest())
 
   "http protocol configuration builder" should "set a silent URI regex" in {
     val builder = httpProtocolBuilder

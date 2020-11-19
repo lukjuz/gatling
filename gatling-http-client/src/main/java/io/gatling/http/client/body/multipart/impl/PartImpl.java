@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.gatling.http.client.body.multipart.impl;
 
-import static io.gatling.http.client.ahc.util.MiscUtils.*;
+import static io.gatling.http.client.util.MiscUtils.*;
 
 import io.gatling.http.client.Param;
 import io.gatling.http.client.body.multipart.Part;
@@ -26,9 +26,6 @@ import io.netty.buffer.ByteBufAllocator;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.GatheringByteChannel;
-import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.util.List;
 
@@ -95,7 +92,6 @@ public abstract class PartImpl implements Closeable {
   private final int preContentLength;
   private final int postContentLength;
   protected PartImplState state;
-  boolean slowTarget;
 
   // lazy
   private ByteBuf preContentBuffer;
@@ -117,10 +113,6 @@ public abstract class PartImpl implements Closeable {
     return state;
   }
 
-  boolean isTargetSlow() {
-    return slowTarget;
-  }
-
   public void copyInto(ByteBuf target) throws IOException {
 
     switch (state) {
@@ -138,27 +130,6 @@ public abstract class PartImpl implements Closeable {
       case POST_CONTENT:
         copyInto(lazyLoadPostContentBuffer(), target, PartImplState.DONE);
         return;
-
-      default:
-        throw new IllegalStateException("Unknown state " + state);
-    }
-  }
-
-  public long transferTo(WritableByteChannel target) throws IOException {
-    slowTarget = false;
-
-    switch (state) {
-      case DONE:
-        return 0L;
-
-      case PRE_CONTENT:
-        return transferTo(lazyLoadPreContentBuffer(), target, PartImplState.CONTENT);
-
-      case CONTENT:
-        return transferContentTo(target);
-
-      case POST_CONTENT:
-        return transferTo(lazyLoadPostContentBuffer(), target, PartImplState.DONE);
 
       default:
         throw new IllegalStateException("Unknown state " + state);
@@ -191,8 +162,6 @@ public abstract class PartImpl implements Closeable {
 
   protected abstract void copyContentInto(ByteBuf target) throws IOException;
 
-  protected abstract long transferContentTo(WritableByteChannel target) throws IOException;
-
   void copyInto(ByteBuf source, ByteBuf target, PartImplState sourceFullyWrittenState) {
 
     int sourceRemaining = source.readableBytes();
@@ -204,33 +173,6 @@ public abstract class PartImpl implements Closeable {
     } else {
       target.writeBytes(source, targetRemaining);
     }
-  }
-
-  long transferTo(ByteBuf source, WritableByteChannel target, PartImplState sourceFullyWrittenState) throws IOException {
-
-    int transferred = 0;
-    if (target instanceof GatheringByteChannel) {
-      transferred = source.readBytes((GatheringByteChannel) target, source.readableBytes());
-    } else {
-      for (ByteBuffer byteBuffer : source.nioBuffers()) {
-        int len = byteBuffer.remaining();
-        int written = target.write(byteBuffer);
-        transferred += written;
-        if (written != len) {
-          // couldn't write full buffer, exit loop
-          break;
-        }
-      }
-      // assume this is a basic single ByteBuf
-      source.readerIndex(source.readerIndex() + transferred);
-    }
-
-    if (source.isReadable()) {
-      slowTarget = true;
-    } else {
-      state = sourceFullyWrittenState;
-    }
-    return transferred;
   }
 
   protected int computePreContentLength() {

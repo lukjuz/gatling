@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 
 package io.gatling.recorder.ui.swing
+
+import java.nio.file.Paths
 
 import scala.swing.Dialog
 import scala.swing.Swing._
@@ -55,7 +57,7 @@ private[ui] class SwingFrontEnd(controller: RecorderController)(implicit configu
       } else {
         val selector = new DialogFileSelector(configurationFrame, possibleMatches)
         selector.open()
-        val parentPath = harFilePath.getParent
+        val parentPath = Paths.get(harFilePath).getParent
         configurationFrame.updateHarFilePath(selector.selectedFile.map(file => (parentPath / file).toString))
       }
     }
@@ -110,7 +112,7 @@ private[ui] class SwingFrontEnd(controller: RecorderController)(implicit configu
   def receiveEvent(event: FrontEndEvent): Unit = onEDT(runningFrame.receiveEvent(event))
 
   private def lookupFiles(path: String): List[String] = {
-    val parent = path.getParent
+    val parent = Paths.get(path).getParent
     parent.files.filter(_.path.startsWith(path)).map(_.path.filename).toList
   }
 }

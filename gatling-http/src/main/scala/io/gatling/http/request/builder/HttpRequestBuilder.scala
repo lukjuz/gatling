@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,30 +16,58 @@
 
 package io.gatling.http.request.builder
 
+import java.security.MessageDigest
+
+import scala.collection.breakOut
+import scala.concurrent.duration.FiniteDuration
+
 import io.gatling.core.body.{ Body, RawFileBodies }
+import io.gatling.core.check.ChecksumCheck
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session._
+import io.gatling.http.ResponseTransformer
 import io.gatling.http.action.HttpRequestActionBuilder
 import io.gatling.http.cache.HttpCaches
-import io.gatling.http.{ HeaderNames, HeaderValues, ResponseTransformer }
 import io.gatling.http.check.{ ErrorCheck, HttpCheck }
-import io.gatling.http.check.HttpCheckScope.Status
+import io.gatling.http.check.HttpCheckScope._
+import io.gatling.http.engine.response.IsHttpDebugEnabled
 import io.gatling.http.protocol.HttpProtocol
 import io.gatling.http.request._
-import com.softwaremill.quicklens._
 
-case class HttpAttributes(
-    checks:              List[HttpCheck]                      = Nil,
-    errorChecks:         List[ErrorCheck]                     = Nil,
-    ignoreDefaultChecks: Boolean                              = false,
-    silent:              Option[Boolean]                      = None,
-    followRedirect:      Boolean                              = true,
-    responseTransformer: Option[ResponseTransformer]          = None,
-    explicitResources:   List[HttpRequestBuilder]             = Nil,
-    body:                Option[Body]                         = None,
-    bodyParts:           List[BodyPart]                       = Nil,
-    formParams:          List[HttpParam]                      = Nil,
-    form:                Option[Expression[Map[String, Any]]] = None
+import com.softwaremill.quicklens._
+import io.netty.handler.codec.http.{ HttpHeaderNames, HttpHeaderValues }
+
+object HttpAttributes {
+  val Empty: HttpAttributes =
+    new HttpAttributes(
+      checks = Nil,
+      errorChecks = Nil,
+      ignoreProtocolChecks = false,
+      silent = None,
+      followRedirect = true,
+      responseTransformer = None,
+      explicitResources = Nil,
+      body = None,
+      bodyParts = Nil,
+      formParams = Nil,
+      form = None,
+      requestTimeout = None
+    )
+}
+
+final case class HttpAttributes(
+    checks: List[HttpCheck],
+    errorChecks: List[ErrorCheck],
+    ignoreProtocolChecks: Boolean,
+    silent: Option[Boolean],
+    followRedirect: Boolean,
+    responseTransformer: Option[ResponseTransformer],
+    explicitResources: List[HttpRequestBuilder],
+    body: Option[Body],
+    bodyParts: List[BodyPart],
+    formParams: List[HttpParam],
+    form: Option[Expression[Map[String, Any]]],
+    requestTimeout: Option[FiniteDuration]
 )
 
 object HttpRequestBuilder {
@@ -47,8 +75,8 @@ object HttpRequestBuilder {
   implicit def toActionBuilder(requestBuilder: HttpRequestBuilder): HttpRequestActionBuilder =
     new HttpRequestActionBuilder(requestBuilder)
 
-  private val MultipartFormDataValueExpression = HeaderValues.MultipartFormData.expressionSuccess
-  private val ApplicationFormUrlEncodedValueExpression = HeaderValues.ApplicationFormUrlEncoded.expressionSuccess
+  private val MultipartFormDataValueExpression = HttpHeaderValues.MULTIPART_FORM_DATA.toString.expressionSuccess
+  private val ApplicationFormUrlEncodedValueExpression = HttpHeaderValues.APPLICATION_X_WWW_FORM_URLENCODED.toString.expressionSuccess
 }
 
 /**
@@ -56,28 +84,16 @@ object HttpRequestBuilder {
  *
  * @param httpAttributes the base HTTP attributes
  */
-case class HttpRequestBuilder(commonAttributes: CommonAttributes, httpAttributes: HttpAttributes) extends RequestBuilder[HttpRequestBuilder] {
+final case class HttpRequestBuilder(commonAttributes: CommonAttributes, httpAttributes: HttpAttributes) extends RequestBuilder[HttpRequestBuilder] {
 
   private[http] def newInstance(commonAttributes: CommonAttributes): HttpRequestBuilder = new HttpRequestBuilder(commonAttributes, httpAttributes)
 
-  /**
-   * Stops defining the request and adds checks on the response
-   *
-   * @param checks the checks that will be performed on the response
-   */
   def check(checks: HttpCheck*): HttpRequestBuilder = this.modify(_.httpAttributes.checks).using(_ ::: checks.toList)
 
-  /**
-   * Stops defining the request and adds checks on the response
-   *
-   * @param checks the checks that will be performed on the error message if any
-   */
-  def errorCheck(checks: ErrorCheck*): HttpRequestBuilder = this.modify(_.httpAttributes.errorChecks).using(_ ::: checks.toList)
+  @deprecated("Please use ignoreProtocolChecks instead. Will be removed in 3.5.0", "3.4.0")
+  def ignoreDefaultChecks: HttpRequestBuilder = ignoreProtocolChecks
 
-  /**
-   * Ignore the default checks configured on HttpProtocol
-   */
-  def ignoreDefaultChecks: HttpRequestBuilder = this.modify(_.httpAttributes.ignoreDefaultChecks).setTo(true)
+  def ignoreProtocolChecks: HttpRequestBuilder = this.modify(_.httpAttributes.ignoreProtocolChecks).setTo(true)
 
   def silent: HttpRequestBuilder = this.modify(_.httpAttributes.silent).setTo(Some(true))
 
@@ -88,7 +104,8 @@ case class HttpRequestBuilder(commonAttributes: CommonAttributes, httpAttributes
   /**
    * @param responseTransformer transforms the response before it's handled to the checks pipeline
    */
-  def transformResponse(responseTransformer: ResponseTransformer): HttpRequestBuilder = this.modify(_.httpAttributes.responseTransformer).setTo(Some(responseTransformer))
+  def transformResponse(responseTransformer: ResponseTransformer): HttpRequestBuilder =
+    this.modify(_.httpAttributes.responseTransformer).setTo(Some(responseTransformer))
 
   def body(bd: Body): HttpRequestBuilder = this.modify(_.httpAttributes.body).setTo(Some(bd))
 
@@ -101,8 +118,8 @@ case class HttpRequestBuilder(commonAttributes: CommonAttributes, httpAttributes
   /**
    * Adds Content-Type header to the request set with "multipart/form-data" value
    */
-  def asMultipartForm: HttpRequestBuilder = header(HeaderNames.ContentType, HttpRequestBuilder.MultipartFormDataValueExpression)
-  def asFormUrlEncoded: HttpRequestBuilder = header(HeaderNames.ContentType, HttpRequestBuilder.ApplicationFormUrlEncodedValueExpression)
+  def asMultipartForm: HttpRequestBuilder = header(HttpHeaderNames.CONTENT_TYPE, HttpRequestBuilder.MultipartFormDataValueExpression)
+  def asFormUrlEncoded: HttpRequestBuilder = header(HttpHeaderNames.CONTENT_TYPE, HttpRequestBuilder.ApplicationFormUrlEncodedValueExpression)
 
   def formParam(key: Expression[String], value: Expression[Any]): HttpRequestBuilder = formParam(SimpleParam(key, value))
   def multivaluedFormParam(key: Expression[String], values: Expression[Seq[Any]]): HttpRequestBuilder = formParam(MultivaluedParam(key, values))
@@ -120,21 +137,35 @@ case class HttpRequestBuilder(commonAttributes: CommonAttributes, httpAttributes
     this.modify(_.httpAttributes.form).setTo(Some(form))
 
   def formUpload(name: Expression[String], filePath: Expression[String])(implicit rawFileBodies: RawFileBodies): HttpRequestBuilder =
-    bodyPart(BodyPart.rawFileBodyPart(Some(name), filePath))
+    bodyPart(BodyPart.rawFileBodyPart(Some(name), filePath, rawFileBodies))
 
+  def requestTimeout(timeout: FiniteDuration): HttpRequestBuilder =
+    this.modify(_.httpAttributes.requestTimeout).setTo(Some(timeout))
+
+  @SuppressWarnings(Array("org.wartremover.warts.Recursion"))
   def build(httpCaches: HttpCaches, httpProtocol: HttpProtocol, throttled: Boolean, configuration: GatlingConfiguration): HttpRequestDef = {
 
-    val checks =
-      if (httpAttributes.ignoreDefaultChecks)
-        httpAttributes.checks
-      else
-        httpProtocol.responsePart.checks ::: httpAttributes.checks
+    val requestChecks = httpAttributes.checks
 
-    val resolvedChecks =
-      if (checks.exists(_.scope == Status))
-        checks
-      else
-        checks ::: List(RequestBuilder.DefaultHttpCheck)
+    val requestAndProtocolChecks =
+      if (httpAttributes.ignoreProtocolChecks) {
+        requestChecks
+      } else {
+        val protocolChecks = httpProtocol.responsePart.checks
+        requestChecks ::: protocolChecks
+      }
+
+    val checks =
+      if (requestAndProtocolChecks.exists(_.scope == Status)) requestAndProtocolChecks
+      else requestAndProtocolChecks ::: List(RequestBuilder.DefaultHttpCheck)
+
+    val sortedChecks = checks.zipWithIndex
+      .sortBy {
+        case (check, rank) => (check.scope, rank)
+      }
+      .map {
+        case (check, _) => check
+      }
 
     val resolvedFollowRedirect = httpProtocol.responsePart.followRedirect && httpAttributes.followRedirect
 
@@ -144,20 +175,40 @@ case class HttpRequestBuilder(commonAttributes: CommonAttributes, httpAttributes
 
     val resolvedRequestExpression = new HttpRequestExpressionBuilder(commonAttributes, httpAttributes, httpCaches, httpProtocol, configuration).build
 
+    val digests: Map[String, MessageDigest] =
+      sortedChecks
+        .map(_.wrapped)
+        .collect { case check: ChecksumCheck[_] => check.algorithm -> MessageDigest.getInstance(check.algorithm) }(breakOut)
+
+    val storeBodyParts = IsHttpDebugEnabled ||
+      // we can't assume anything about if and how the response body will be used,
+      // let's force bytes so we don't risk decoding binary content
+      resolvedResponseTransformer.isDefined ||
+      sortedChecks.exists(_.scope == Body)
+
     HttpRequestDef(
       commonAttributes.requestName,
       resolvedRequestExpression,
       HttpRequestConfig(
-        checks = resolvedChecks,
+        checks = sortedChecks,
         errorChecks = httpAttributes.errorChecks,
         responseTransformer = resolvedResponseTransformer,
-        maxRedirects = httpProtocol.responsePart.maxRedirects,
         throttled = throttled,
         silent = httpAttributes.silent,
         followRedirect = resolvedFollowRedirect,
+        digests = digests,
+        storeBodyParts = storeBodyParts,
+        defaultCharset = configuration.core.charset,
         explicitResources = resolvedResources,
         httpProtocol = httpProtocol
       )
     )
   }
+
+  /**
+   * Stops defining the request and adds checks on the response
+   *
+   * @param checks the checks that will be performed on the error message if any
+   */
+  def errorCheck(checks: ErrorCheck*): HttpRequestBuilder = this.modify(_.httpAttributes.errorChecks).using(_ ::: checks.toList)
 }

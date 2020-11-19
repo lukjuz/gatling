@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,9 +27,8 @@ import io.gatling.http.request.builder.sse.SseConnectRequestBuilder
 
 import com.softwaremill.quicklens._
 
-case class SseConnectBuilder(
-    requestName:    Expression[String],
-    sseName:        String,
+final case class SseConnectBuilder(
+    requestName: Expression[String],
     requestBuilder: SseConnectRequestBuilder,
     checkSequences: List[SseMessageCheckSequence]
 ) extends HttpActionBuilder {
@@ -40,7 +39,7 @@ case class SseConnectBuilder(
   override def build(ctx: ScenarioContext, next: Action): Action = {
     import ctx._
     val httpComponents = lookUpHttpComponents(protocolComponentsRegistry)
-    val request = requestBuilder.build(httpComponents)
-    new SseConnect(requestName, sseName, request, checkSequences, httpComponents, next)
+    val request = requestBuilder.build(httpComponents, coreComponents.configuration)
+    new SseConnect(requestName, requestBuilder.sseName, request, checkSequences, coreComponents, httpComponents, next)
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,21 +25,19 @@ import com.github.benmanes.caffeine.cache.{ Caffeine, LoadingCache }
 object Cache {
 
   def newConcurrentCache[K, V](maxSize: Long): ConcurrentMap[K, V] =
-    Caffeine
-      .newBuilder
+    Caffeine.newBuilder
       .asInstanceOf[Caffeine[Any, Any]]
       .maximumSize(maxSize)
       .build[K, V]
       .asMap
 
   def newConcurrentLoadingCache[K, V](maxSize: Long, f: K => V): LoadingCache[K, V] =
-    Caffeine
-      .newBuilder
+    Caffeine.newBuilder
       .asInstanceOf[Caffeine[Any, Any]]
       .maximumSize(maxSize)
-      .build((key: K) => f(key))
+      .build(key => f(key))
 
-  def newImmutableCache[K, V](maxCapacity: Int) = new Cache[K, V](Queue.empty, Map.empty, maxCapacity)
+  def newImmutableCache[K, V](maxCapacity: Int): Cache[K, V] = new Cache[K, V](Queue.empty, Map.empty, maxCapacity)
 }
 
 class Cache[K, V](queue: Queue[K], map: Map[K, V], maxCapacity: Int) {

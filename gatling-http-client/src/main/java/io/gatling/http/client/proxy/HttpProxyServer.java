@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,12 +37,12 @@ public class HttpProxyServer extends ProxyServer {
     this.securedAddress = new InetSocketAddress(inetAddress, securedPort);
   }
 
-  public InetSocketAddress getAddress() {
-    return address;
-  }
-
   public int getSecuredPort() {
     return securedPort;
+  }
+
+  public BasicRealm getRealm() {
+    return realm;
   }
 
   @Override

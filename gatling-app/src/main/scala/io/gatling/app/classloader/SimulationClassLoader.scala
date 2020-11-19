@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,8 +56,7 @@ private[app] class SimulationClassLoader(classLoader: ClassLoader, binaryDir: Pa
   }
 
   private def pathToClassName(path: Path, root: Path): String =
-    (path.getParent / path.stripExtension)
-      .toString
-      .stripPrefix(root + File.separator)
+    (path.getParent / path.stripExtension).toString
+      .stripPrefix(root.toString + File.separator)
       .replace(File.separator, ".")
 }

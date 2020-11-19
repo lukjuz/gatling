@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,5 +26,5 @@ public abstract class RequestBodyBuilder<T> {
     this.content = content;
   }
 
-  public abstract RequestBody<T> build(String contentType, Charset charset);
+  public abstract RequestBody<?> build(String contentType, Charset charset, Charset defaultCharset);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,11 +20,11 @@ import scala.concurrent.duration.FiniteDuration
 
 import com.softwaremill.quicklens._
 
-case class SseMessageCheckSequence(timeout: FiniteDuration, checks: List[SseMessageCheck]) {
+final case class SseMessageCheckSequence(timeout: FiniteDuration, checks: List[SseMessageCheck]) {
   require(checks.nonEmpty, "Can't pass empty check sequence")
 }
 
-case class SseMessageCheck(name: String, matchConditions: List[SseCheck], checks: List[SseCheck]) {
+final case class SseMessageCheck(name: String, matchConditions: List[SseCheck], checks: List[SseCheck]) {
 
   def matching(newMatchConditions: SseCheck*): SseMessageCheck =
     this.modify(_.matchConditions).using(_ ::: newMatchConditions.toList)

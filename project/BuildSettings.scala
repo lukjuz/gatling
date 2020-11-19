@@ -12,6 +12,7 @@ object BuildSettings {
     githubPath := "gatling/gatling",
     projectDevelopers := developers,
     parallelExecution in Test := false,
+    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
     licenses := Seq("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.html"))
     // [fl]
     //
@@ -22,6 +23,9 @@ object BuildSettings {
 
   lazy val gatlingModuleSettings =
     basicSettings ++ scaladocSettings ++ utf8Encoding
+
+  lazy val skipPublishing =
+    skip in publish := true
 
   lazy val noArtifactToPublish =
     publishArtifact in Compile := false
@@ -37,9 +41,8 @@ object BuildSettings {
   val developers = Seq(
     GatlingDeveloper("slandelle@gatling.io", "Stephane Landelle", isGatlingCorp = true),
     GatlingDeveloper("gcorre@gatling.io", "Guillaume Corré", isGatlingCorp = true),
-    GatlingDeveloper("tgrenier@gatling.io", "Thomas Grenier", isGatlingCorp = true),
     GatlingDeveloper("ccousseran@gatling.io", "Cédric Cousseran", isGatlingCorp = true),
-    GatlingDeveloper("achaouat@gatling.io", "Alexandre Chaouat", isGatlingCorp = true)
+    GatlingDeveloper("tpetillot@gatling.io  ", "Thomas Petillot", isGatlingCorp = true)
   )
 
   // UTF-8

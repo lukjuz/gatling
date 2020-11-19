@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package io.gatling.app
 
 import java.nio.file.FileSystems
+import java.util.concurrent.TimeUnit
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -24,15 +25,12 @@ import scala.util.control.NonFatal
 
 import io.gatling.app.cli.ArgsParser
 import io.gatling.core.config.GatlingConfiguration
+import io.gatling.netty.util.Transports
 
 import akka.actor.ActorSystem
-import ch.qos.logback.classic.LoggerContext
 import com.typesafe.scalalogging.StrictLogging
 import org.slf4j.LoggerFactory
 
-/**
- * Object containing entry point of application
- */
 object Gatling extends StrictLogging {
 
   // used by bundle
@@ -59,6 +57,13 @@ object Gatling extends StrictLogging {
 
   private[app] def start(overrides: ConfigOverrides, selectedSimulationClass: SelectedSimulationClass) =
     try {
+      //[fl]
+      //
+      //
+      //
+      //
+      //[fl]
+
       logger.trace("Starting")
       // workaround for deadlock issue, see https://github.com/gatling/gatling/issues/3411
       FileSystems.getDefault
@@ -66,10 +71,11 @@ object Gatling extends StrictLogging {
       logger.trace("Configuration loaded")
       // start actor system before creating simulation instance, some components might need it (e.g. shutdown hook)
       val system = ActorSystem("GatlingSystem", GatlingConfiguration.loadActorSystemConfiguration())
+      val eventLoopGroup = Transports.newEventLoopGroup(configuration.netty.useNativeTransport, 0, "gatling")
       logger.trace("ActorSystem instantiated")
       val runResult =
         try {
-          val runner = Runner(system, configuration)
+          val runner = Runner(system, eventLoopGroup, configuration)
           logger.trace("Runner instantiated")
           runner.run(selectedSimulationClass)
         } catch {
@@ -77,16 +83,17 @@ object Gatling extends StrictLogging {
             logger.error("Run crashed", e)
             throw e
         } finally {
+          eventLoopGroup.shutdownGracefully(0, configuration.core.shutdownTimeout, TimeUnit.MILLISECONDS)
           terminateActorSystem(system, configuration.core.shutdownTimeout milliseconds)
         }
-      RunResultProcessor(configuration).processRunResult(runResult).code
+      new RunResultProcessor(configuration).processRunResult(runResult).code
     } finally {
       val factory = LoggerFactory.getILoggerFactory
       try {
         factory.getClass.getMethod("stop").invoke(factory)
       } catch {
-        case ex: NoSuchMethodException => //Fail silently if a logging provider other than LogBack is used.
-        case NonFatal(ex)              => logger.warn("Logback failed to shutdown.", ex)
+        case _: NoSuchMethodException => //Fail silently if a logging provider other than LogBack is used.
+        case NonFatal(ex)             => logger.warn("Logback failed to shutdown.", ex)
       }
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,12 +21,10 @@ import java.nio.charset.Charset
 import io.gatling.charts.FileNamingConventions
 import io.gatling.charts.component.Component
 import io.gatling.charts.config.ChartsFiles._
+import io.gatling.charts.util.HtmlHelper._
 import io.gatling.commons.stats.Group
-import io.gatling.commons.util.HtmlHelper._
 import io.gatling.commons.util.StringHelper._
 import io.gatling.core.stats.writer.RunMessage
-
-import com.dongxiguo.fastring.Fastring.Implicits._
 
 private[charts] object PageTemplate {
 
@@ -45,7 +43,7 @@ private[charts] abstract class PageTemplate(title: String, isDetails: Boolean, r
 
   def jsFiles: Seq[String] = (CommonJsFiles ++ components.flatMap(_.jsFiles)).distinct
 
-  def getOutput(charset: Charset): Fastring = {
+  def getOutput(charset: Charset): String = {
     val runMessage = PageTemplate.runMessage
     val runStart = PageTemplate.runStart
     val runEnd = PageTemplate.runEnd
@@ -65,7 +63,7 @@ private[charts] abstract class PageTemplate(title: String, isDetails: Boolean, r
         "var pageStats = stats.stats;"
       }
 
-    fast"""
+    s"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -73,15 +71,15 @@ private[charts] abstract class PageTemplate(title: String, isDetails: Boolean, r
 <link rel="shortcut icon" type="image/x-icon" href="style/favicon.ico"/>
 <link href="style/style.css" rel="stylesheet" type="text/css" />
 <link href="style/bootstrap.min.css" rel="stylesheet" type="text/css" />
-${jsFiles.map(jsFile => fast"""<script type="text/javascript" src="js/$jsFile"></script>""").mkFastring(Eol)}
+${jsFiles.map(jsFile => s"""<script type="text/javascript" src="js/$jsFile"></script>""").mkString(Eol)}
 <title>Gatling Stats - $title</title>
 </head>
 <body>
 <div class="frise"></div>
 <div class="container details">
     <div class="head">
-        <a class="logo" href="https://gatling.io" target="blank_" title="Gatling Home Page"><img alt="Gatling" src="style/logo.png"/></a>
-        <div><a href="https://gatling.io/gatling-frontline/?report" target="_blank">Get more features with Gatling FrontLine</a></div>
+        <a class="logo" href="https://gatling.io" target="blank_" title="Gatling Home Page"><img alt="Gatling" src="style/logo.svg"/></a>
+        <div class="frontline"><a href="https://gatling.io/gatling-frontline/?report" target="_blank">Get more features with Gatling FrontLine</a></div>
     </div>
     <div class="main">
         <div class="cadre">
@@ -97,14 +95,16 @@ ${jsFiles.map(jsFile => fast"""<script type="text/javascript" src="js/$jsFile"><
                           var timestamp = $runStart;
                           var runStartHumanDate = moment(timestamp).format("YYYY-MM-DD HH:mm:ss Z");
                           document.writeln("<p class='sim_desc' title='"+ runStartHumanDate +", duration : $duration seconds' data-content='${runMessage.runDescription.htmlEscape}'>");
-                          document.writeln("<b>" + runStartHumanDate + ", duration : $duration seconds ${runMessage.runDescription.truncate(70).htmlEscape}</b>");
+                          document.writeln("<b>" + runStartHumanDate + ", duration : $duration seconds ${runMessage.runDescription
+      .truncate(70)
+      .htmlEscape}</b>");
                           document.writeln("</p>");
                         </script>
                     </div>
                     <div class="content-in">
                         <h1><span>> </span>$title</h1>
                         <div class="article">
-                            ${components.map(_.html).mkFastring}
+                            ${components.map(_.html).mkString}
                         </div>
                     </div>
                 </div>
@@ -114,9 +114,6 @@ ${jsFiles.map(jsFile => fast"""<script type="text/javascript" src="js/$jsFile"><
         <ul></ul>
     </div>
 </div>
-<div class="foot">
-    <a href="https://gatling.io" title="Gatling Home Page"><img alt="Gatling" src="style/logo-gatling.jpg"/></a>
-</div>
 <script type="text/javascript">
     $pageStats
     $$(document).ready(function() {
@@ -125,7 +122,7 @@ ${jsFiles.map(jsFile => fast"""<script type="text/javascript" src="js/$jsFile"><
         ${if (isDetails) "setDetailsMenu();" else "setGlobalMenu();"}
         setActiveMenu();
         fillStats(pageStats);
-        ${components.map(_.js).mkFastring}
+        ${components.map(_.js).mkString}
     });
 </script>
 </body>

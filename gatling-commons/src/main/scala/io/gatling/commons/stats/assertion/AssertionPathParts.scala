@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@
 package io.gatling.commons.stats.assertion
 
 object AssertionPathParts {
-  implicit def string2PathParts(path: String) = AssertionPathParts(List(path))
+  implicit def string2PathParts(path: String): AssertionPathParts = AssertionPathParts(List(path))
 }
-case class AssertionPathParts(parts: List[String]) {
-  def /(part: String) = copy(parts = parts :+ part)
+final case class AssertionPathParts(parts: List[String]) {
+  def /(part: String): AssertionPathParts = copy(parts = parts :+ part)
 }

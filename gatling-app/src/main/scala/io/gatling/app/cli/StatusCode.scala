@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,4 +22,4 @@ object StatusCode {
   case object AssertionsFailed extends StatusCode(2)
 }
 
-private[gatling] sealed abstract class StatusCode(val code: Int)
+private[gatling] sealed abstract class StatusCode(val code: Int) extends Product with Serializable

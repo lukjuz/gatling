@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,20 +24,20 @@ import io.gatling.core.Predef._
 import io.gatling.jms.Predef._
 import io.gatling.jms.protocol.JmsMessageMatcher
 
-object IdentificationMatcher extends JmsMessageMatcher {
+object HeaderMatcher extends JmsMessageMatcher {
   override def prepareRequest(msg: Message): Unit = {}
+  override def requestMatchId(msg: Message): String = msg.getStringProperty("header")
   override def responseMatchId(msg: Message): String = requestMatchId(msg)
-  override def requestMatchId(msg: Message): String = msg.getStringProperty("identification")
 }
 
 class JmsCompileTest extends Simulation {
 
   // create JmsProtocol from standard ConnectionFactory
-  val jmsProtocolWithNativeConnectionFactory = jms
+  private val jmsProtocolWithNativeConnectionFactory = jms
     .connectionFactory(new org.apache.activemq.ActiveMQConnectionFactory("tcp://localhost:61616"))
 
   // create JmsProtocol from JNDI based ConnectionFactory
-  val jmsProtocolWithJndiConnectionFactory = jms
+  private val jmsProtocolWithJndiConnectionFactory = jms
     .connectionFactory(
       jmsJndiConnectionFactory
         .connectionFactoryName("ConnectionFactory")
@@ -48,105 +48,143 @@ class JmsCompileTest extends Simulation {
     )
     .usePersistentDeliveryMode
     .replyTimeout(1000)
-    .messageMatcher(IdentificationMatcher)
+    .messageMatcher(HeaderMatcher)
     .matchByCorrelationId
     .matchByMessageId
 
-  val scn = scenario("JMS DSL test")
-    .repeat(1) {
-      exec(jms("req reply testing").requestReply
-        .queue("jmstestq")
-        // -- four message types are supported; only StreamMessage is not currently supported
-        .textMessage("hello from gatling jms dsl")
-        .property("test_header", "test_value")
-        .check(checkBodyTextCorrect))
-        .exec(jms("req reply testing").requestReply
-          .queue("jmstestq")
-          .bytesMessage(new Array[Byte](1))
-          .jmsType("foo")
-          .property("test_header", "test_value")
-          .check(checkBodyTextCorrect))
-        .exec(jms("req reply testing").requestReply
-          .queue("jmstestq")
-          .mapMessage(Map("foo" -> "bar"))
-          .property("test_header", "test_value")
-          .check(checkBodyTextCorrect))
-        .exec(jms("req reply testing").requestReply
-          .queue("jmstestq")
-          .objectMessage("hello!")
-          .property("test_header", "test_value")
-          .check(checkBodyTextCorrect))
-        .exec(jms("req reply - custom").requestReply
-          .queue("requestQueue")
-          .replyQueue("responseQueue")
-          .noJmsReplyTo
-          .textMessage("hello from gatling jms dsl")
-          .property("identification", "${ID}")
-          .check(checkBodyTextCorrect))
-    }
-
-  val scnExtra = scenario("JMS DSL using destinations").repeat(1) {
-    exec(jms("req reply testing").requestReply
-      .destination(topic("jmstesttopic"))
-      .textMessage("hello from gatling jms dsl")
-      .check(checkBodyTextCorrect))
-      .exec(jms("req reply testing").requestReply
-        .destination(queue("jmstestq"))
-        .replyDestination(queue("jmstestq"))
-        .textMessage("hello from gatling jms dsl")
-        .check(checkBodyTextCorrect))
-      .exec(jms("req reply testing").requestReply
-        .destination(topic("requestTopic"))
-        .replyDestination(topic("replyTopic")).selector("env='myenv'")
-        .textMessage("hello from gatling jms dsl")
-        .check(checkBodyTextCorrect))
-      .exec(jms("req reply testing").requestReply
-        .destination(topic("requestTopic"))
-        .replyDestination(topic("replyTopic")).selector("env='myenv'")
-        .textMessage("<test>name</test>")
-        .check(xpath("//TEST").saveAs("name")))
-  }
-
-  val scnSend = scenario("JMS DSL test").repeat(1) {
-    exec(jms("req reply testing").send
-      .queue("jmstestq")
-      // -- four message types are supported; only StreamMessage is not currently supported
-      .textMessage("hello from gatling jms dsl")
-      .property("test_header", "test_value"))
-      .exec(jms("req reply testing").send
-        .queue("jmstestq")
+  private val scn = scenario("scn")
+  // requestReply
+  // textMessage
+    .exec(
+      jms("req").requestReply
+        .queue("queue")
+        .replyQueue("responseQueue")
+        .textMessage("hello")
+    )
+    // textMessage with ElFileBody
+    .exec(
+      jms("req").requestReply
+        .queue("queue")
+        .textMessage(ElFileBody("file"))
+    )
+    // bytesMessage
+    .exec(
+      jms("req").requestReply
+        .queue("queue")
         .bytesMessage(new Array[Byte](1))
-        .property("test_header", "test_value"))
-      .exec(jms("req reply testing").send
-        .queue("jmstestq")
-        .objectMessage("hello!")
-        .property("test_header", "test_value"))
-      .exec(jms("req reply - custom").send
-        .queue("requestQueue")
-        .textMessage("hello from gatling jms dsl")
-        .property("identification", "${ID}"))
-  }
+    )
+    // bytesMessage with RawFileBody
+    .exec(
+      jms("req").requestReply
+        .queue("queue")
+        .bytesMessage(RawFileBody("file"))
+    )
+    // mapMessage
+    .exec(
+      jms("req").requestReply
+        .queue("queue")
+        .mapMessage(Map("foo" -> "bar"))
+    )
+    // objectMessage
+    .exec(
+      jms("req").requestReply
+        .queue("queue")
+        .objectMessage("hello")
+    )
+    // destination
+    .exec(
+      jms("req").requestReply
+        .destination(topic("topic"))
+        .noJmsReplyTo
+        .replyDestination(queue("queue"))
+        .trackerQueue("queue")
+        .trackerDestination(topic("topic"))
+        .selector("selector")
+        .textMessage("hello")
+    )
+    // check
+    .exec(
+      jms("req").requestReply
+        .queue("queue")
+        .textMessage("hello")
+        .check(checkBodyTextCorrect)
+        .check(xpath("//TEST").saveAs("name"))
+        .check(jsonPath("$.foo"))
+        .check(jmesPath("[].foo"))
+        .check(substring("foo"))
+        .check(bodyString)
+        .check(
+          bodyString.is("hello"),
+          substring("he").count.is(1),
+          checkIf(_ => true) {
+            jsonPath("$").is("hello")
+          }
+        )
+    )
+    // extra
+    .exec(
+      jms("req").requestReply
+        .queue("queue")
+        .textMessage("hello")
+        .property("header", "value")
+        .property("header", "${value}")
+        .property("header", _ => "value")
+        .jmsType("foo")
+    )
 
-  val scnSendExtra = scenario("JMS DSL using destinations").repeat(1) {
-    exec(jms("req reply testing").send
-      .destination(topic("jmstesttopic"))
-      .textMessage("hello from gatling jms dsl"))
-      .exec(jms("req reply testing").send
-        .destination(queue("jmstestq"))
-        .textMessage("hello from gatling jms dsl"))
-      .exec(jms("req reply testing").send
-        .destination(topic("requestTopic"))
-        .textMessage("hello from gatling jms dsl"))
-      .exec(jms("req reply testing").send
-        .destination(topic("requestTopic"))
-        .textMessage("<test>name</test>"))
-  }
+    // send
+    // textMessage
+    .exec(
+      jms("req").send
+        .queue("queue")
+        .textMessage("hello")
+    )
+    // bytesMessage
+    .exec(
+      jms("req").send
+        .queue("queue")
+        .bytesMessage(new Array[Byte](1))
+    )
+    // objectMessage
+    .exec(
+      jms("req").send
+        .queue("queue")
+        .objectMessage("hello")
+    )
+    // mapMessage
+    .exec(
+      jms("req").send
+        .queue("queue")
+        .mapMessage(Map("foo" -> "bar"))
+    )
+    // destination: topic
+    .exec(
+      jms("req").send
+        .destination(topic("topic"))
+        .textMessage("hello")
+    )
+    // destination: queue
+    .exec(
+      jms("req").send
+        .destination(queue("queue"))
+        .textMessage("hello")
+    )
+    // extra
+    .exec(
+      jms("req").send
+        .queue("queue")
+        .textMessage("hello")
+        .property("header", "value")
+        .property("header", "${value}")
+        .property("header", _ => "value")
+        .jmsType("foo")
+    )
 
   setUp(scn.inject(rampUsersPerSec(10) to 1000 during (2 minutes)))
     .protocols(jmsProtocolWithNativeConnectionFactory)
 
-  def checkBodyTextCorrect = simpleCheck {
-    case tm: TextMessage => tm.getText == "HELLO FROM GATLING JMS DSL"
+  private def checkBodyTextCorrect = simpleCheck {
+    case tm: TextMessage => tm.getText == "hello"
     case _               => false
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package io.gatling.jms.client
 
 import javax.jms.Message
+
 import scala.collection.mutable
 import scala.concurrent.duration._
 
@@ -36,29 +37,29 @@ import akka.actor.{ Props, Timers }
 /**
  * Advise actor a message was sent to JMS provider
  */
-case class MessageSent(
-    matchId:      String,
-    sent:         Long,
+final case class MessageSent(
+    matchId: String,
+    sent: Long,
     replyTimeout: Long,
-    checks:       List[JmsCheck],
-    session:      Session,
-    next:         Action,
-    requestName:  String
+    checks: List[JmsCheck],
+    session: Session,
+    next: Action,
+    requestName: String
 )
 
 /**
  * Advise actor a response message was received from JMS provider
  */
-case class MessageReceived(
-    matchId:  String,
+final case class MessageReceived(
+    matchId: String,
     received: Long,
-    message:  Message
+    message: Message
 )
 
 case object TimeoutScan
 
 object Tracker {
-  def props(statsEngine: StatsEngine, clock: Clock, configuration: GatlingConfiguration) =
+  def props(statsEngine: StatsEngine, clock: Clock, configuration: GatlingConfiguration): Props =
     Props(new Tracker(statsEngine, clock, configuration.jms.replyTimeoutScanPeriod))
 }
 
@@ -72,10 +73,10 @@ class Tracker(statsEngine: StatsEngine, clock: Clock, replyTimeoutScanPeriod: Fi
   private val timedOutMessages = mutable.ArrayBuffer.empty[MessageSent]
   private var periodicTimeoutScanTriggered = false
 
-  def triggerPeriodicTimeoutScan(): Unit =
+  private def triggerPeriodicTimeoutScan(): Unit =
     if (!periodicTimeoutScanTriggered) {
       periodicTimeoutScanTriggered = true
-      timers.startPeriodicTimer("timeoutTimer", TimeoutScan, replyTimeoutScanPeriod)
+      timers.startTimerWithFixedDelay("timeoutTimer", TimeoutScan, replyTimeoutScanPeriod)
     }
 
   override def receive: Receive = {
@@ -111,29 +112,29 @@ class Tracker(statsEngine: StatsEngine, clock: Clock, replyTimeoutScanPeriod: Fi
   }
 
   private def executeNext(
-    session:     Session,
-    sent:        Long,
-    received:    Long,
-    status:      Status,
-    next:        Action,
-    requestName: String,
-    message:     Option[String]
+      session: Session,
+      sent: Long,
+      received: Long,
+      status: Status,
+      next: Action,
+      requestName: String,
+      message: Option[String]
   ): Unit = {
-    statsEngine.logResponse(session, requestName, sent, received, status, None, message)
-    next ! session.logGroupRequest(sent, received, status).increaseDrift(clock.nowMillis - received)
+    statsEngine.logResponse(session.scenario, session.groups, requestName, sent, received, status, None, message)
+    next ! session.logGroupRequestTimings(sent, received)
   }
 
   /**
    * Processes a matched message
    */
   private def processMessage(
-    session:     Session,
-    sent:        Long,
-    received:    Long,
-    checks:      List[JmsCheck],
-    message:     Message,
-    next:        Action,
-    requestName: String
+      session: Session,
+      sent: Long,
+      received: Long,
+      checks: List[JmsCheck],
+      message: Message,
+      next: Action,
+      requestName: String
   ): Unit = {
     // run all the checks, advise the Gatling API that it is complete and move to next
     val (newSession, error) = Check.check(message, session, checks)

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@
 
 package io.gatling.http.request
 
+import java.nio.charset.Charset
+import java.security.MessageDigest
+
 import io.gatling.commons.validation.Validation
 import io.gatling.core.session._
 import io.gatling.http.ResponseTransformer
@@ -23,20 +26,22 @@ import io.gatling.http.check.{ ErrorCheck, HttpCheck }
 import io.gatling.http.client.Request
 import io.gatling.http.protocol.HttpProtocol
 
-case class HttpRequestConfig(
-    checks:              List[HttpCheck],
-    errorChecks:         List[ErrorCheck],
+final case class HttpRequestConfig(
+    checks: List[HttpCheck],
+    errorChecks: List[ErrorCheck],
     responseTransformer: Option[ResponseTransformer],
-    maxRedirects:        Int,
-    throttled:           Boolean,
-    silent:              Option[Boolean],
-    followRedirect:      Boolean,
-    explicitResources:   List[HttpRequestDef],
-    httpProtocol:        HttpProtocol
+    throttled: Boolean,
+    silent: Option[Boolean],
+    followRedirect: Boolean,
+    digests: Map[String, MessageDigest],
+    storeBodyParts: Boolean,
+    defaultCharset: Charset,
+    explicitResources: List[HttpRequestDef],
+    httpProtocol: HttpProtocol
 )
 
-case class HttpRequestDef(
-    requestName:   Expression[String],
+final case class HttpRequestDef(
+    requestName: Expression[String],
     clientRequest: Expression[Request],
     requestConfig: HttpRequestConfig
 ) {
@@ -45,22 +50,14 @@ case class HttpRequestDef(
     clientRequest(session).map(HttpRequest(requestName, _, requestConfig))
 }
 
-case class HttpRequest(requestName: String, clientRequest: Request, requestConfig: HttpRequestConfig) {
+final case class HttpRequest(requestName: String, clientRequest: Request, requestConfig: HttpRequestConfig) {
 
-  def isSilent(root: Boolean): Boolean = {
-
-    val requestPart = requestConfig.httpProtocol.requestPart
-
-    def silentBecauseProtocolSilentURI: Boolean = requestPart.silentUri match {
-      case Some(silentUri) => silentUri.matcher(clientRequest.getUri.toUrl).matches
-      case _               => false
-    }
-
-    def silentBecauseProtocolSilentResources = !root && requestPart.silentResources
-
+  def isSilent(root: Boolean): Boolean =
     requestConfig.silent match {
       case Some(silent) => silent
-      case _            => silentBecauseProtocolSilentURI || silentBecauseProtocolSilentResources
+      case _ =>
+        val requestPart = requestConfig.httpProtocol.requestPart
+        requestPart.silentUri.exists(_.matcher(clientRequest.getUri.toUrl).matches) || // silent because matches protocol's silentUri
+        (!root && requestPart.silentResources) // silent because resources are silent
     }
-  }
 }

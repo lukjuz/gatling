@@ -1,46 +1,79 @@
+import sbt._
+
 import BuildSettings._
 import Bundle._
 import ConfigFiles._
 import CopyLogback._
 import Dependencies._
 import VersionFile._
-import sbt._
 
 // Root project
 
+ThisBuild / Keys.useCoursier := false
+
 lazy val root = Project("gatling-parent", file("."))
   .enablePlugins(AutomateHeaderPlugin, SonatypeReleasePlugin, SphinxPlugin)
-  .dependsOn(Seq(commons, core, http, jms, jdbc, redis).map(_ % "compile->compile;test->test"): _*)
-  .aggregate(nettyUtil, commons, core, jdbc, redis, httpClient, http, jms, charts, graphite, app, recorder, testFramework, bundle, compiler)
-  .settings(basicSettings: _*)
-  .settings(noArtifactToPublish)
+  .dependsOn(Seq(commons, jsonpath, core, http, jms, mqtt, jdbc, redis).map(_ % "compile->compile;test->test"): _*)
+  .aggregate(
+    nettyUtil,
+    commonsShared,
+    commons,
+    jsonpath,
+    core,
+    jdbc,
+    redis,
+    httpClient,
+    http,
+    jms,
+    mqtt,
+    charts,
+    graphite,
+    app,
+    recorder,
+    testFramework,
+    bundle,
+    compiler
+  )
+  .settings(basicSettings)
+  .settings(skipPublishing)
   .settings(libraryDependencies ++= docDependencies)
-  .settings(updateOptions := updateOptions.value.withGigahorse(false))
   .settings(unmanagedSourceDirectories in Test := ((sourceDirectory in Sphinx).value ** "code").get)
 
 // Modules
 
-def gatlingModule(id: String) = Project(id, file(id))
-  .enablePlugins(AutomateHeaderPlugin, SonatypeReleasePlugin)
-  .settings(gatlingModuleSettings: _*)
-  .settings(updateOptions := updateOptions.value.withGigahorse(false))
+def gatlingModule(id: String) =
+  Project(id, file(id))
+    .enablePlugins(AutomateHeaderPlugin, SonatypeReleasePlugin)
+    .settings(gatlingModuleSettings ++ CodeAnalysis.settings)
 
 lazy val nettyUtil = gatlingModule("gatling-netty-util")
   .settings(libraryDependencies ++= nettyUtilDependencies)
 
-lazy val commons = gatlingModule("gatling-commons")
+lazy val commonsShared = gatlingModule("gatling-commons-shared")
   .dependsOn(nettyUtil % "compile->compile;test->test")
-  .settings(libraryDependencies ++= commonsDependencies(scalaVersion.value))
-  .settings(generateVersionFileSettings: _*)
+  .settings(libraryDependencies ++= commonsSharedDependencies(scalaVersion.value))
+
+lazy val commons = gatlingModule("gatling-commons")
+  .dependsOn(commonsShared % "compile->compile;test->test")
+  .settings(libraryDependencies ++= commonsDependencies)
+  .settings(generateVersionFileSettings)
+
+lazy val jsonpath = gatlingModule("gatling-jsonpath")
+  .settings(libraryDependencies ++= jsonpathDependencies)
 
 lazy val core = gatlingModule("gatling-core")
   .dependsOn(commons % "compile->compile;test->test")
+  .dependsOn(jsonpath % "compile->compile;test->test")
   .settings(libraryDependencies ++= coreDependencies)
-  .settings(copyGatlingDefaults(compiler): _*)
+  .settings(copyGatlingDefaults(compiler))
 
 lazy val jdbc = gatlingModule("gatling-jdbc")
   .dependsOn(core % "compile->compile;test->test")
   .settings(libraryDependencies ++= jdbcDependencies)
+
+lazy val mqtt = gatlingModule("gatling-mqtt")
+  .dependsOn(nettyUtil, core)
+  .settings(libraryDependencies ++= mqttDependencies)
 
 lazy val redis = gatlingModule("gatling-redis")
   .dependsOn(core % "compile->compile;test->test")
@@ -51,9 +84,7 @@ lazy val httpClient = gatlingModule("gatling-http-client")
   .settings(libraryDependencies ++= httpClientDependencies)
 
 lazy val http = gatlingModule("gatling-http")
-  .dependsOn(
-    core % "compile->compile;test->test",
-    httpClient % "compile->compile;test->test")
+  .dependsOn(core % "compile->compile;test->test", httpClient % "compile->compile;test->test")
   .settings(libraryDependencies ++= httpDependencies)
 
 lazy val jms = gatlingModule("gatling-jms")
@@ -64,8 +95,8 @@ lazy val jms = gatlingModule("gatling-jms")
 lazy val charts = gatlingModule("gatling-charts")
   .dependsOn(core % "compile->compile;test->test")
   .settings(libraryDependencies ++= chartsDependencies)
-  .settings(excludeDummyComponentLibrary: _*)
-  .settings(chartTestsSettings: _*)
+  .settings(excludeDummyComponentLibrary)
+  .settings(chartTestsSettings)
 
 lazy val graphite = gatlingModule("gatling-graphite")
   .dependsOn(core % "compile->compile;test->test")
@@ -93,8 +124,18 @@ lazy val testFramework = gatlingModule("gatling-test-framework")
 lazy val bundle = gatlingModule("gatling-bundle")
   .dependsOn(core, http)
   .enablePlugins(UniversalPlugin)
-  .settings(generateConfigFiles(core): _*)
-  .settings(generateConfigFiles(recorder): _*)
-  .settings(copyLogbackXml(core): _*)
-  .settings(bundleSettings: _*)
-  .settings(noArtifactToPublish)
+  .settings(generateConfigFiles(core))
+  .settings(generateConfigFiles(recorder))
+  .settings(copyLogbackXml(core))
+  .settings(bundleSettings)
+  .settings(exportJars := false, noArtifactToPublish)
+  .settings(CodeAnalysis.disable)
+
+addCommandAlias(
+  "ci-checks",
+  List(
+    "all clean scalafmtSbtCheck scalafmtCheckAll",
+    "all compile:scalafixCheck test:scalafixCheck",
+    "test"
+  ).mkString(";", ";", "")
+)

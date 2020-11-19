@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,6 +47,15 @@ public class WritableRequest {
       ctx.write(content);
       return ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
     }
+  }
+
+  public ChannelFuture writeWithoutContent(ChannelHandlerContext ctx) {
+    return ctx.writeAndFlush(request);
+  }
+
+  public ChannelFuture writeContent(ChannelHandlerContext ctx) {
+    ctx.write(content);
+    return ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
   }
 
   @Override

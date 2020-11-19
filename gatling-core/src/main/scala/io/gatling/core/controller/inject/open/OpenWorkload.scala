@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,12 +24,19 @@ import io.gatling.commons.util.Clock
 import io.gatling.core.controller.inject.Workload
 import io.gatling.core.scenario.Scenario
 import io.gatling.core.stats.StatsEngine
-import io.gatling.core.stats.writer.UserMessage
+import io.gatling.core.stats.writer.UserEndMessage
 
-import akka.actor.ActorSystem
+import io.netty.channel.EventLoopGroup
 
-class OpenWorkload(scenario: Scenario, stream: UserStream, userIdGen: AtomicLong, startTime: Long, system: ActorSystem, statsEngine: StatsEngine, clock: Clock)
-  extends Workload(scenario, userIdGen, startTime, system, statsEngine, clock) {
+class OpenWorkload(
+    scenario: Scenario,
+    stream: UserStream,
+    userIdGen: AtomicLong,
+    startTime: Long,
+    eventLoopGroup: EventLoopGroup,
+    statsEngine: StatsEngine,
+    clock: Clock
+) extends Workload(scenario, userIdGen, eventLoopGroup, statsEngine, clock) {
 
   override def injectBatch(batchWindow: FiniteDuration): Unit = {
     val result = stream.withStream(batchWindow, clock.nowMillis, startTime)(injectUser)
@@ -39,8 +46,8 @@ class OpenWorkload(scenario: Scenario, stream: UserStream, userIdGen: AtomicLong
     }
   }
 
-  override def endUser(userMessage: UserMessage): Unit = {
-    statsEngine.logUser(userMessage)
+  override def endUser(userMessage: UserEndMessage): Unit = {
+    statsEngine.logUserEnd(userMessage)
     incrementStoppedUsers()
   }
 }

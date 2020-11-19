@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package io.gatling.core.action
 
 import io.gatling.BaseSpec
 import io.gatling.core.session.Session
+import io.gatling.core.session.SessionSpec.EmptySession
 
 class ActionSpec extends BaseSpec {
 
@@ -32,7 +33,7 @@ class ActionSpec extends BaseSpec {
     val testAction = new TestAction
 
     testAction.hasRun shouldBe false
-    testAction ! Session("scenario", 0, System.currentTimeMillis())
+    testAction ! EmptySession
     testAction.hasRun shouldBe true
   }
 }

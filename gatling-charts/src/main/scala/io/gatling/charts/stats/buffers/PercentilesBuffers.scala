@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.gatling.charts.stats.buffers
 
-import io.gatling.core.stats.{ Percentiles, PercentilesVsTimePlot }
+import io.gatling.charts.stats.{ Percentiles, PercentilesVsTimePlot }
 
 import com.tdunning.math.stats.{ AVLTreeDigest, TDigest }
 
@@ -41,7 +41,7 @@ private[stats] class PercentilesBuffers(buckets: Array[Int]) {
         case (digestO, bucketNumber) =>
           val time = buckets(bucketNumber)
           val percentiles = digestO.map { digest =>
-            Percentiles(
+            new Percentiles(
               digest.quantile(0).toInt,
               digest.quantile(0.25).toInt,
               digest.quantile(0.5).toInt,
@@ -55,6 +55,6 @@ private[stats] class PercentilesBuffers(buckets: Array[Int]) {
             )
           }
 
-          PercentilesVsTimePlot(time, percentiles)
+          new PercentilesVsTimePlot(time, percentiles)
       }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ import io.gatling.http.action.HttpActionBuilder
 import io.gatling.http.request.builder.HttpRequestBuilder
 
 class PollingStartBuilder(
-    pollerName:     String,
-    period:         FiniteDuration,
+    pollerName: String,
+    period: FiniteDuration,
     requestBuilder: HttpRequestBuilder
 ) extends HttpActionBuilder {
 
@@ -33,7 +33,16 @@ class PollingStartBuilder(
     import ctx._
     val httpComponents = lookUpHttpComponents(protocolComponentsRegistry)
     val requestDef = requestBuilder.build(httpComponents.httpCaches, httpComponents.httpProtocol, throttled, coreComponents.configuration)
-    new PollingStart(pollerName, period, coreComponents, requestDef, httpComponents.httpCaches, httpComponents.httpProtocol, httpComponents.httpTxExecutor, next)
+    new PollingStart(
+      pollerName,
+      period,
+      coreComponents,
+      requestDef,
+      httpComponents.httpCaches,
+      httpComponents.httpProtocol,
+      httpComponents.httpTxExecutor,
+      next
+    )
   }
 }
 

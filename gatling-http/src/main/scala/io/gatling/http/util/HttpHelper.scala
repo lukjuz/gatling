@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,33 +17,34 @@
 package io.gatling.http.util
 
 import java.net.URLDecoder
-import java.nio.charset.{ Charset, StandardCharsets }
+import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets.UTF_8
 
-import scala.collection.{ BitSet, breakOut }
+import scala.collection.{ breakOut, BitSet }
 import scala.collection.JavaConverters._
-import scala.io.Codec.UTF8
 import scala.util.Try
 import scala.util.control.NonFatal
 
 import io.gatling.core.session._
-import io.gatling.http.client.ahc.uri.Uri
+import io.gatling.http.{ MissingNettyHttpHeaderNames, MissingNettyHttpHeaderValues }
 import io.gatling.http.client.realm.{ BasicRealm, DigestRealm, Realm }
-import io.gatling.http.{ HeaderNames, HeaderValues }
+import io.gatling.http.client.uri.Uri
 
-import io.netty.handler.codec.http.{ HttpHeaders, HttpResponseStatus }
-import io.netty.handler.codec.http.HttpResponseStatus._
 import com.typesafe.scalalogging.StrictLogging
+import io.netty.handler.codec.http.{ HttpHeaderNames, HttpHeaders, HttpResponseStatus }
+import io.netty.handler.codec.http.HttpResponseStatus._
 import io.netty.handler.codec.http.cookie.{ ClientCookieDecoder, Cookie }
 
-object HttpHelper extends StrictLogging {
+private[gatling] object HttpHelper extends StrictLogging {
 
   val HttpScheme = "http"
   val WsScheme = "ws"
-  val OkCodes: BitSet = BitSet.empty + OK.code + NOT_MODIFIED.code + CREATED.code + ACCEPTED.code + NON_AUTHORITATIVE_INFORMATION.code + NO_CONTENT.code + RESET_CONTENT.code + PARTIAL_CONTENT.code + MULTI_STATUS.code + 208 + 209
+  val OkCodes
+      : BitSet = BitSet.empty + OK.code + NOT_MODIFIED.code + CREATED.code + ACCEPTED.code + NON_AUTHORITATIVE_INFORMATION.code + NO_CONTENT.code + RESET_CONTENT.code + PARTIAL_CONTENT.code + MULTI_STATUS.code + 208 + 209
   private val RedirectStatusCodes = BitSet.empty + MOVED_PERMANENTLY.code + FOUND.code + SEE_OTHER.code + TEMPORARY_REDIRECT.code + PERMANENT_REDIRECT.code
 
   def parseFormBody(body: String): List[(String, String)] = {
-    def utf8Decode(s: String) = URLDecoder.decode(s, UTF8.name)
+    def utf8Decode(s: String) = URLDecoder.decode(s, UTF_8.name)
 
     body
       .split("&")
@@ -69,11 +70,55 @@ object HttpHelper extends StrictLogging {
         passwordValue <- password(session)
       } yield new DigestRealm(usernameValue, passwordValue)
 
-  private def headerExists(headers: HttpHeaders, headerName: String, f: String => Boolean): Boolean = Option(headers.get(headerName)).exists(f)
-  def isCss(headers: HttpHeaders): Boolean = headerExists(headers, HeaderNames.ContentType, _.contains(HeaderValues.TextCss))
-  def isHtml(headers: HttpHeaders): Boolean = headerExists(headers, HeaderNames.ContentType, ct => ct.contains(HeaderValues.TextHtml) || ct.contains(HeaderValues.ApplicationXhtml))
-  def isAjax(headers: HttpHeaders): Boolean = headerExists(headers, HeaderNames.XRequestedWith, _.contains(HeaderValues.XmlHttpRequest))
-  def isTxt(headers: HttpHeaders): Boolean = headerExists(headers, HeaderNames.ContentType, ct => ct.contains("text") || ct.contains("json") || ct.contains("javascript") || ct.contains("xml") || ct.contains("x-pem-file"))
+  private def headerExists(headers: HttpHeaders, headerName: CharSequence, f: String => Boolean): Boolean = Option(headers.get(headerName)).exists(f)
+  def isCss(headers: HttpHeaders): Boolean = headerExists(headers, HttpHeaderNames.CONTENT_TYPE, _.startsWith(MissingNettyHttpHeaderValues.TextCss.toString))
+  def isHtml(headers: HttpHeaders): Boolean =
+    headerExists(
+      headers,
+      HttpHeaderNames.CONTENT_TYPE,
+      ct => ct.startsWith(MissingNettyHttpHeaderValues.TextHtml.toString) || ct.startsWith(MissingNettyHttpHeaderValues.ApplicationXhtml.toString)
+    )
+  def isAjax(headers: HttpHeaders): Boolean =
+    headerExists(headers, MissingNettyHttpHeaderNames.XRequestedWith, _ == MissingNettyHttpHeaderValues.XmlHttpRequest.toString)
+
+  private val ApplicationStart = "application/"
+  private val ApplicationStartOffset = ApplicationStart.length
+  private val ApplicationJavascriptEnd = "javascript"
+  private val ApplicationJsonEnd = "json"
+  private val ApplicationXmlEnd = "xml"
+  private val ApplicationFormUrlEncodedEnd = "x-www-form-urlencoded"
+  private val ApplicationXhtmlEnd = "xhtml+xml"
+  private val TextStart = "text/"
+  private val TextStartOffset = TextStart.length
+  private val TextCssEnd = "css"
+  private val TextCsvEnd = "csv"
+  private val TextHtmlEnd = "html"
+  private val TextJavascriptEnd = "javascript"
+  private val TextPlainEnd = "plain"
+  private val TextXmlEnd = "xml"
+
+  def isText(headers: HttpHeaders): Boolean =
+    headerExists(
+      headers,
+      HttpHeaderNames.CONTENT_TYPE,
+      ct =>
+        ct.startsWith(ApplicationStart) && (
+          ct.startsWith(ApplicationJavascriptEnd, ApplicationStartOffset)
+            || ct.startsWith(ApplicationJsonEnd, ApplicationStartOffset)
+            || ct.startsWith(ApplicationXmlEnd, ApplicationStartOffset)
+            || ct.startsWith(ApplicationFormUrlEncodedEnd, ApplicationStartOffset)
+            || ct.startsWith(ApplicationXhtmlEnd, ApplicationStartOffset)
+        )
+          || (ct.startsWith(TextStart) && (
+            ct.startsWith(TextCssEnd, TextStartOffset)
+              || ct.startsWith(TextCsvEnd, TextStartOffset)
+              || ct.startsWith(TextHtmlEnd, TextStartOffset)
+              || ct.startsWith(TextJavascriptEnd, TextStartOffset)
+              || ct.startsWith(TextJavascriptEnd, TextStartOffset)
+              || ct.startsWith(TextPlainEnd, TextStartOffset)
+              || ct.startsWith(TextXmlEnd, TextStartOffset)
+          ))
+    )
 
   def resolveFromUri(rootURI: Uri, relative: String): Uri =
     if (relative.startsWith("//"))
@@ -105,23 +150,20 @@ object HttpHelper extends StrictLogging {
       case s =>
         var start = s + "charset=".length
 
-        if (contentType.regionMatches(true, start, "UTF-8", 0, 5)) {
+        if (contentType.regionMatches(true, start, UTF_8.name, 0, 5)) {
           // minor optim, bypass lookup for most common
-          Some(StandardCharsets.UTF_8)
+          Some(UTF_8)
 
         } else {
           var end = contentType.indexOf(';', start) match {
             case -1 => contentType.length
-
             case e  => e
           }
 
-          Try {
-            while (contentType.charAt(start) == ' ' && start < end)
-              start += 1
+          try {
+            while (contentType.charAt(start) == ' ' && start < end) start += 1
 
-            while (contentType.charAt(end - 1) == ' ' && end > start)
-              end -= 1
+            while (contentType.charAt(end - 1) == ' ' && end > start) end -= 1
 
             if (contentType.charAt(start) == '"' && start < end)
               start += 1
@@ -131,17 +173,19 @@ object HttpHelper extends StrictLogging {
 
             val charsetString = contentType.substring(start, end)
 
-            Charset.forName(charsetString)
-          }.toOption
+            Some(Charset.forName(charsetString))
+          } catch {
+            case NonFatal(_) => None
+          }
         }
     }
 
   def responseCookies(headers: HttpHeaders): List[Cookie] = {
-    val setCookieValues = headers.getAll(HeaderNames.SetCookie)
+    val setCookieValues = headers.getAll(HttpHeaderNames.SET_COOKIE)
     if (setCookieValues.isEmpty) {
       Nil
     } else {
-      setCookieValues.asScala.flatMap(setCookie => Option(ClientCookieDecoder.LAX.decode(setCookie)))(breakOut)
+      setCookieValues.asScala.flatMap(setCookie => Option(ClientCookieDecoder.LAX.decode(setCookie)).toList)(breakOut)
     }
   }
 }

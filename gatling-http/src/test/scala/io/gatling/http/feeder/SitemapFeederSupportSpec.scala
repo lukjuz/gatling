@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import io.gatling.core.util.Resource
 
 class SitemapFeederSupportSpec extends BaseSpec with SitemapFeederSupport {
 
-  private implicit val configuration = GatlingConfiguration.loadForTest()
+  private implicit val configuration: GatlingConfiguration = GatlingConfiguration.loadForTest()
 
   "create sitemap feeder" should "get file resource" in {
     val feederBuilder = sitemap(Resource.resolveResource(Paths.get(""), "sitemap.xml"))

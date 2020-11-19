@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,16 +29,13 @@ package object session {
   val TrueExpressionSuccess: Expression[Boolean] = true.expressionSuccess
   val EmptyStringExpressionSuccess: Expression[String] = "".expressionSuccess
 
-  case class StaticStringExpression(value: String) extends Expression[String] {
+  final case class StaticValueExpression[T](value: T) extends Expression[T] {
     private val valueV = value.success
-    override def apply(session: Session): Validation[String] = valueV
+    override def apply(session: Session): Validation[T] = valueV
   }
 
   implicit class ExpressionSuccessWrapper[T](val value: T) extends AnyVal {
-    def expressionSuccess: Expression[T] = {
-      val valueS = value.success
-      _ => valueS
-    }
+    def expressionSuccess: Expression[T] = StaticValueExpression(value)
   }
 
   implicit class ExpressionFailureWrapper(val message: String) extends AnyVal {
@@ -49,13 +46,13 @@ package object session {
   }
 
   implicit class RichExpression[T](val expression: Expression[T]) extends AnyVal {
-    def map[U](f: T => U): Expression[U] = expression.andThen(_.map(f))
+    def map[U](f: T => U): Expression[U] = expression(_).map(f)
     def safe: Expression[T] = session => safely()(expression(session))
   }
 
   def resolveOptionalExpression[T](expression: Option[Expression[T]], session: Session): Validation[Option[T]] = expression match {
-    case None      => NoneSuccess
     case Some(exp) => exp(session).map(Some.apply)
+    case _         => NoneSuccess
   }
 
   def resolveIterable[X](iterable: Iterable[(String, Expression[X])]): Expression[Seq[(String, X)]] = {
@@ -73,7 +70,7 @@ package object session {
       }
     }
 
-    (session: Session) => resolveRec(session, iterable.iterator, Nil)
+    resolveRec(_, iterable.iterator, Nil)
   }
 
   def seq2SeqExpression(seq: Seq[(String, Any)]): Expression[Seq[(String, Any)]] = {

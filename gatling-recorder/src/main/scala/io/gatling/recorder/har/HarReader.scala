@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.gatling.recorder.har
 
-import java.io.{ FileInputStream, InputStream }
+import java.io.{ BufferedInputStream, FileInputStream, InputStream }
 import java.net.{ URL, URLEncoder }
 import java.nio.charset.StandardCharsets.UTF_8
 import java.time.ZonedDateTime
@@ -27,23 +27,23 @@ import scala.util.Try
 import io.gatling.commons.util.Io._
 import io.gatling.commons.util.StringHelper._
 import io.gatling.core.filter.Filters
-import io.gatling.http.HeaderNames.ContentType
-import io.gatling.http.HeaderValues.ApplicationFormUrlEncoded
 import io.gatling.recorder.har.HarParser._
 import io.gatling.recorder.model._
 
-import io.netty.handler.codec.http.{ DefaultHttpHeaders, HttpHeaderValues, HttpHeaders, HttpMethod }
+import io.netty.handler.codec.http.{ DefaultHttpHeaders, HttpHeaderNames, HttpHeaderValues, HttpHeaders, HttpMethod }
+import io.netty.util.AsciiString
 
-case class HttpTransaction(request: HttpRequest, response: HttpResponse)
+final case class HttpTransaction(request: HttpRequest, response: HttpResponse)
 
 private[recorder] object HarReader {
 
   def readFile(path: String, filters: Option[Filters]): Seq[HttpTransaction] =
-    withCloseable(new FileInputStream(path))(readStream(_, filters))
+    withCloseable(new BufferedInputStream(new FileInputStream(path)))(readStream(_, filters))
 
   private[har] def readStream(is: InputStream, filters: Option[Filters]): Seq[HttpTransaction] = {
     val harEntries = HarParser.parseHarEntries(is)
-    val filteredHarEntries = harEntries.filter(entry => filters.forall(_.accept(entry.request.url)))
+    val filteredHarEntries = harEntries
+      .filter(entry => filters.forall(_.accept(entry.request.url) && Filters.BrowserNoiseFilters.accept(entry.request.url)))
     buildHttpTransactions(filteredHarEntries)
   }
 
@@ -51,12 +51,18 @@ private[recorder] object HarReader {
     ZonedDateTime.parse(time).toInstant.toEpochMilli
 
   private def buildHttpTransactions(harEntries: Seq[HarEntry]): Seq[HttpTransaction] =
-    harEntries
-      .iterator
-      // Filter out all non-HTTP protocols (eg: ws://)
+    harEntries.iterator
+    // filter out cancelled requests
+      .filter(_.response.status != 0)
+      // filter out all non-HTTP protocols (eg: ws://)
       .filter(_.request.url.toString.toLowerCase(Locale.ROOT).startsWith("http"))
       // filter out CONNECT (if HAR was generated with a proxy such as Charles) and Upgrade requests (WebSockets)
-      .filter(entry => entry.request.method != HttpMethod.CONNECT.name && !entry.request.headers.contains(HttpHeaderValues.UPGRADE))
+      .filter(
+        entry =>
+          entry.request.method != HttpMethod.CONNECT.name && !entry.request.headers.exists(
+            header => AsciiString.contentEqualsIgnoreCase(header.name, HttpHeaderValues.UPGRADE)
+          )
+      )
       .filter(entry => isValidURL(entry.request.url))
       .map(buildHttpTransaction)
       .toVector
@@ -116,7 +122,8 @@ private[recorder] object HarReader {
 
       case _ =>
         // FIXME only honor params for ApplicationFormUrlEncoded for now. Charles seems utterly broken for MultipartFormData
-        if (postData.params.nonEmpty && Option(requestHeaders.get(ContentType)).exists(_.toLowerCase(Locale.ROOT).contains(ApplicationFormUrlEncoded))) {
+        if (postData.params.nonEmpty && Option(requestHeaders.get(HttpHeaderNames.CONTENT_TYPE))
+              .exists(AsciiString.contains(_, HttpHeaderValues.APPLICATION_X_WWW_FORM_URLENCODED))) {
           Some(postData.params.map(postParam => encode(postParam.name) + "=" + encode(unwrap(postParam.value))).mkString("&").getBytes(UTF_8))
 
         } else {

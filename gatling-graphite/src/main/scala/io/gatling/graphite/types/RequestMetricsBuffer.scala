@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,5 +24,15 @@ private[graphite] trait RequestMetricsBuffer {
   def metricsByStatus: MetricByStatus
 }
 
-private[graphite] case class MetricByStatus(ok: Option[Metrics], ko: Option[Metrics], all: Option[Metrics])
-private[graphite] case class Metrics(count: Long, min: Int, max: Int, mean: Int, stdDev: Int, percentile1: Int, percentile2: Int, percentile3: Int, percentile4: Int)
+private[graphite] final case class MetricByStatus(ok: Option[Metrics], ko: Option[Metrics], all: Option[Metrics])
+private[graphite] final case class Metrics(
+    count: Long,
+    min: Int,
+    max: Int,
+    mean: Int,
+    stdDev: Int,
+    percentile1: Int,
+    percentile2: Int,
+    percentile3: Int,
+    percentile4: Int
+)

@@ -28,9 +28,8 @@ Basically, it's a ``Map[String, Any]``: a map with key Strings.
 In Gatling, entries in this map are called **Session attributes**.
 
 .. note::
-  Remember that a Gatling scenario is a workflow where every step is backed by an Akka Actor?
-
-  A ``Session`` is actually the message that are passed along a scenario workflow.
+  A Gatling scenario is a workflow where every step is an ``Action``.
+  A ``Session`` is the message that is passed along a scenario workflow.
 
 .. _session-inject:
 
@@ -110,28 +109,28 @@ You can then access methods to retrieve the actual value in several ways:
 
 * returns a ``Int``,
 * throws a ``NoSuchElementException`` if the *foo* attribute is undefined,
-* throws a ``NumberFormatException`` if the value is a String and can't be parsed into a String,
-* throws a ``ClassCastException`` if the value is not an Int
+* throws a ``NumberFormatException`` if the value is a String and can't be parsed into an Int,
+* throws a ``ClassCastException`` otherwise.
 
 ``session("foo").asOption[Int]``:
 
-* returns an ``Option[Int]``
+* returns an ``Option[Int]``,
 * which is ``None`` if the *foo* attribute is undefined,
-* which is ``Some(value)`` otherwise and *value* is an Int, or is a String that can be parsed into a String,
-* throws a ``NumberFormatException`` if the value is a String and can't be parsed into a String,
-* throws a ``ClassCastException`` otherwise
+* which is ``Some(value)`` otherwise and *value* is an Int, or is a String that can be parsed into an Int,
+* throws a ``NumberFormatException`` if the value is a String and can't be parsed into an Int,
+* throws a ``ClassCastException`` otherwise.
 
 ``session("foo").validate[Int]``:
 
-* returns an ``Validation[Int]``
-* which is ``Success(value)`` if the *foo* attribute is defined and *value* is an Int or is a String that can be parsed into a String,
-* which is ``Failure(errorMessage)`` otherwise
+* returns a ``Validation[Int]``,
+* which is ``Success(value)`` if the *foo* attribute is defined and *value* is an Int or is a String that can be parsed into an Int,
+* which is ``Failure(errorMessage)`` otherwise.
 
 .. note::
   Trying to get a ``[String]`` actually performs a ``toString`` conversion and thus, always works as long as the entry is defined.
 
 .. note::
-if the value a ``[String]``, Gatling will try to parse it into a value of the expected type.
+  If the value is a ``[String]``, Gatling will try to parse it into a value of the expected type.
 
 .. note::
 

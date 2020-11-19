@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@
 package io.gatling.recorder.http.ssl
 
 import java.net.Socket
-import java.security.{ PrivateKey, Principal }
+import java.security.{ Principal, PrivateKey }
 import java.security.cert.X509Certificate
-import javax.net.ssl.{ X509KeyManager, SSLEngine, X509ExtendedKeyManager }
+import javax.net.ssl.{ SSLEngine, X509ExtendedKeyManager, X509KeyManager }
 
 import com.typesafe.scalalogging.StrictLogging
 

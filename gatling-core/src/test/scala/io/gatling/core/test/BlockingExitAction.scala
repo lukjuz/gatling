@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import scala.concurrent.duration.Duration
 import io.gatling.core.action.Action
 import io.gatling.core.session.Session
 
-private[test] class BlockingExitAction(latchSize: Int = 1) extends Action {
+private[test] class BlockingExitAction(latchSize: Int) extends Action {
 
   private val latch = new CountDownLatch(latchSize)
 

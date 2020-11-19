@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,6 @@ trait GeneralStatsSource {
 
   def assertions: List[Assertion]
   def statsPaths: List[StatsPath]
-  def requestGeneralStats(requestName: Option[String] = None, group: Option[Group] = None, status: Option[Status] = None): GeneralStats
+  def requestGeneralStats(requestName: Option[String], group: Option[Group], status: Option[Status]): GeneralStats
   def groupCumulatedResponseTimeGeneralStats(group: Group, status: Option[Status]): GeneralStats
 }

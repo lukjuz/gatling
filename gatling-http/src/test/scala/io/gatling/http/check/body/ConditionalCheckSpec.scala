@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,63 +16,49 @@
 
 package io.gatling.http.check.body
 
-import java.nio.charset.StandardCharsets._
-
-import java.util.{ HashMap => JHashMap }
-
-import io.gatling.{ ValidationValues, BaseSpec }
+import io.gatling.{ BaseSpec, ValidationValues }
 import io.gatling.commons.validation.Success
 import io.gatling.core.CoreDsl
-import io.gatling.core.check.CheckResult
+import io.gatling.core.check.{ Check, CheckResult }
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session.Session
+import io.gatling.core.session.SessionSpec.EmptySession
 import io.gatling.http.HttpDsl
-import io.gatling.http.response.{ StringResponseBody, Response }
 import io.gatling.http.check.HttpCheck
-
-import org.mockito.Mockito._
+import io.gatling.http.response.Response
 
 class ConditionalCheckSpec extends BaseSpec with ValidationValues with CoreDsl with HttpDsl {
 
-  implicit val configuration = GatlingConfiguration.loadForTest()
-
-  implicit def cache: JHashMap[Any, Any] = new JHashMap
-  val session = Session("mockSession", 0, System.currentTimeMillis())
-
-  private def mockResponse(body: String) = {
-    val response = mock[Response]
-    when(response.body) thenReturn new StringResponseBody(body, UTF_8)
-    response
-  }
+  override implicit val configuration: GatlingConfiguration = GatlingConfiguration.loadForTest()
 
   "checkIf.true.succeed" should "perform the succeed nested check" in {
     val response = mockResponse("""[{"id":"1072920417"},"id":"1072920418"]""")
     val thenCheck: HttpCheck = substring(""""id":"""").count
-    val check: HttpCheck = checkIf((r: Response, s: Session) => Success(true))(thenCheck)
-    check.check(response, session).succeeded shouldBe CheckResult(Some(2), None)
+    val check: HttpCheck = checkIf((_: Response, _: Session) => Success(true))(thenCheck)
+    check.check(response, EmptySession, Check.newPreparedCache).succeeded shouldBe CheckResult(Some(2), None)
   }
 
   "checkIf.true.failed" should "perform the failed nested check" in {
     val response = mockResponse("""[{"id":"1072920417"},"id":"1072920418"]""")
     val substringValue = """"foo":""""
     val thenCheck: HttpCheck = substring(substringValue).findAll.exists
-    val check: HttpCheck = checkIf((r: Response, s: Session) => Success(true))(thenCheck)
-    check.check(response, session).failed shouldBe s"substring($substringValue).findAll.exists, found nothing"
+    val check: HttpCheck = checkIf((_: Response, _: Session) => Success(true))(thenCheck)
+    check.check(response, EmptySession, Check.newPreparedCache).failed shouldBe s"substring($substringValue).findAll.exists, found nothing"
   }
 
   "checkIf.false.succeed" should "not perform the succeed nested check" in {
     val response = mockResponse("""[{"id":"1072920417"},"id":"1072920418"]""")
     val thenCheck: HttpCheck = substring(""""id":"""").count
-    val check: HttpCheck = checkIf((r: Response, s: Session) => Success(false))(thenCheck)
-    check.check(response, session).succeeded shouldBe CheckResult(None, None)
+    val check: HttpCheck = checkIf((_: Response, _: Session) => Success(false))(thenCheck)
+    check.check(response, EmptySession, Check.newPreparedCache).succeeded shouldBe CheckResult(None, None)
   }
 
   "checkIf.false.failed" should "not perform the failed nested check" in {
     val response = mockResponse("""[{"id":"1072920417"},"id":"1072920418"]""")
     val substringValue = """"foo":""""
     val thenCheck: HttpCheck = substring(substringValue).findAll.exists
-    val check: HttpCheck = checkIf((r: Response, s: Session) => Success(false))(thenCheck)
-    check.check(response, session).succeeded shouldBe CheckResult(None, None)
+    val check: HttpCheck = checkIf((_: Response, _: Session) => Success(false))(thenCheck)
+    check.check(response, EmptySession, Check.newPreparedCache).succeeded shouldBe CheckResult(None, None)
   }
 
 }

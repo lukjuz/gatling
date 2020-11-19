@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import io.gatling.commons.util.Clock
 import io.gatling.core.scenario.Scenario
 import io.gatling.core.stats.StatsEngine
 
-import akka.actor.ActorSystem
+import io.netty.channel.EventLoopGroup
 
 trait InjectionProfileFactory[-InjectionStep] {
 
@@ -33,7 +33,14 @@ trait InjectionProfile {
 
   def totalUserCount: Option[Long]
 
-  def workload(scenario: Scenario, userIdGen: AtomicLong, startTime: Long, system: ActorSystem, statsEngine: StatsEngine, clock: Clock): Workload
+  def workload(
+      scenario: Scenario,
+      userIdGen: AtomicLong,
+      startTime: Long,
+      eventLoopGroup: EventLoopGroup,
+      statsEngine: StatsEngine,
+      clock: Clock
+  ): Workload
 
   //[fl]
   //

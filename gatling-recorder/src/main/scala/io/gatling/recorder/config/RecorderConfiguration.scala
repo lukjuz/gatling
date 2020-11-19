@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,13 @@
 package io.gatling.recorder.config
 
 import java.io.FileNotFoundException
-import java.nio.file.Path
+import java.nio.file.{ Path, Paths }
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.duration.{ Duration, DurationInt }
 import scala.util.Properties.userHome
+import scala.util.control.NonFatal
 
 import io.gatling.commons.util.ConfigHelper.configChain
 import io.gatling.commons.util.Io._
@@ -36,7 +37,6 @@ import io.gatling.recorder.http.ssl.{ HttpsMode, KeyStoreType }
 
 import com.typesafe.config.{ Config, ConfigFactory, ConfigRenderOptions }
 import com.typesafe.scalalogging.StrictLogging
-import scala.util.control.NonFatal
 
 private[recorder] object RecorderConfiguration extends StrictLogging {
 
@@ -50,7 +50,7 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
 
   implicit var configuration: RecorderConfiguration = _
 
-  implicit val gatlingConfiguration: GatlingConfiguration = GatlingConfiguration.load()
+  private[this] val gatlingConfiguration: GatlingConfiguration = GatlingConfiguration.load(mutable.Map.empty)
 
   private[this] def getClassLoader = Thread.currentThread.getContextClassLoader
   private[this] def getDefaultConfig(classLoader: ClassLoader) =
@@ -61,10 +61,10 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
     buildConfig(configChain(ConfigFactory.parseMap(props.asJava), defaultConfig))
   }
 
-  def initialSetup(props: mutable.Map[String, _ <: Any], recorderConfigFile: Option[Path] = None): Unit = {
+  def initialSetup(props: mutable.Map[String, _ <: Any], recorderConfigFile: Option[Path]): Unit = {
     val classLoader = getClassLoader
     val defaultConfig = getDefaultConfig(classLoader)
-    configFile = recorderConfigFile.orElse(Option(classLoader.getResource("recorder.conf")).map(url => url.toURI))
+    configFile = recorderConfigFile.orElse(Option(classLoader.getResource("recorder.conf")).map(url => Paths.get(url.toURI)))
 
     val customConfig = configFile.map(path => ConfigFactory.parseFile(path.toFile)).getOrElse {
       // Should only happens with a manually (and incorrectly) updated Maven archetype or SBT template
@@ -99,9 +99,13 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
   private[config] def createAndOpen(path: Path): Path =
     if (!path.exists) {
       val parent = path.getParent
-      if (parent.exists) path.touch
-      else throw new FileNotFoundException(s"Directory '${parent.toString}' for recorder configuration does not exist")
-    } else path
+      if (!parent.exists) {
+        throw new FileNotFoundException(s"Directory '${parent.toString}' for recorder configuration does not exist")
+      }
+      path.createFile()
+    } else {
+      path
+    }
 
   private def buildConfig(config: Config): RecorderConfiguration = {
     import ConfigKeys._
@@ -109,13 +113,13 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
     def getSimulationsFolder(folder: String) =
       folder.trimToOption match {
         case Some(f)                               => f
-        case _ if sys.env.contains("GATLING_HOME") => simulationsDirectory.toFile.toString
+        case _ if sys.env.contains("GATLING_HOME") => simulationsDirectory(gatlingConfiguration).toFile.toString
         case _                                     => userHome
       }
 
     def getResourcesFolder =
       if (config.hasPath(core.ResourcesFolder)) config.getString(core.ResourcesFolder)
-      else resourcesDirectory.toFile.toString
+      else resourcesDirectory(gatlingConfiguration).toFile.toString
 
     RecorderConfiguration(
       core = CoreConfiguration(
@@ -132,8 +136,8 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
       ),
       filters = FiltersConfiguration(
         filterStrategy = FilterStrategy(config.getString(filters.FilterStrategy)),
-        whiteList = WhiteList(config.getStringList(filters.WhitelistPatterns).asScala.toList),
-        blackList = BlackList(config.getStringList(filters.BlacklistPatterns).asScala.toList)
+        whiteList = new WhiteList(config.getStringList(filters.WhitelistPatterns).asScala.toList),
+        blackList = new BlackList(config.getStringList(filters.BlacklistPatterns).asScala.toList)
       ),
       http = HttpConfiguration(
         automaticReferer = config.getBoolean(http.AutomaticReferer),
@@ -141,7 +145,8 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
         inferHtmlResources = config.getBoolean(http.InferHtmlResources),
         removeCacheHeaders = config.getBoolean(http.RemoveCacheHeaders),
         checkResponseBodies = config.getBoolean(http.CheckResponseBodies),
-        useSimulationAsPrefix = config.getBoolean(http.UseSimulationAsPrefix)
+        useSimulationAsPrefix = config.getBoolean(http.UseSimulationAsPrefix),
+        useMethodAndUriAsPostfix = config.getBoolean(http.UseMethodAndUriAsPostfix)
       ),
       proxy = ProxyConfiguration(
         port = config.getInt(proxy.Port),
@@ -153,8 +158,8 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
             keyStoreType = KeyStoreType(config.getString(proxy.https.keyStore.Type))
           ),
           certificateAuthority = CertificateAuthorityConfiguration(
-            certificatePath = config.getString(proxy.https.certificateAuthority.CertificatePath),
-            privateKeyPath = config.getString(proxy.https.certificateAuthority.PrivateKeyPath)
+            certificatePath = Paths.get(config.getString(proxy.https.certificateAuthority.CertificatePath)),
+            privateKeyPath = Paths.get(config.getString(proxy.https.certificateAuthority.PrivateKeyPath))
           )
         ),
         outgoing = OutgoingProxyConfiguration(
@@ -176,84 +181,85 @@ private[recorder] object RecorderConfiguration extends StrictLogging {
   }
 }
 
-private[recorder] case class FiltersConfiguration(
+private[recorder] final case class FiltersConfiguration(
     filterStrategy: FilterStrategy,
-    whiteList:      WhiteList,
-    blackList:      BlackList
+    whiteList: WhiteList,
+    blackList: BlackList
 ) {
 
   def filters: Option[Filters] = filterStrategy match {
     case FilterStrategy.Disabled       => None
-    case FilterStrategy.BlacklistFirst => Some(Filters(blackList, whiteList))
-    case FilterStrategy.WhitelistFirst => Some(Filters(whiteList, blackList))
+    case FilterStrategy.BlackListFirst => Some(new Filters(blackList, whiteList))
+    case FilterStrategy.WhiteListFirst => Some(new Filters(whiteList, blackList))
   }
 }
 
-private[recorder] case class CoreConfiguration(
-    mode:                      RecorderMode,
-    encoding:                  String,
-    simulationsFolder:         String,
-    resourcesFolder:           String,
-    pkg:                       String,
-    className:                 String,
+private[recorder] final case class CoreConfiguration(
+    mode: RecorderMode,
+    encoding: String,
+    simulationsFolder: String,
+    resourcesFolder: String,
+    pkg: String,
+    className: String,
     thresholdForPauseCreation: Duration,
-    saveConfig:                Boolean,
-    headless:                  Boolean,
-    harFilePath:               Option[String]
+    saveConfig: Boolean,
+    headless: Boolean,
+    harFilePath: Option[String]
 )
 
-private[recorder] case class HttpConfiguration(
-    automaticReferer:      Boolean,
-    followRedirect:        Boolean,
-    inferHtmlResources:    Boolean,
-    removeCacheHeaders:    Boolean,
-    checkResponseBodies:   Boolean,
-    useSimulationAsPrefix: Boolean
+private[recorder] final case class HttpConfiguration(
+    automaticReferer: Boolean,
+    followRedirect: Boolean,
+    inferHtmlResources: Boolean,
+    removeCacheHeaders: Boolean,
+    checkResponseBodies: Boolean,
+    useSimulationAsPrefix: Boolean,
+    useMethodAndUriAsPostfix: Boolean
 )
 
-private[recorder] case class KeyStoreConfiguration(
-    path:         String,
-    password:     String,
+private[recorder] final case class KeyStoreConfiguration(
+    path: String,
+    password: String,
     keyStoreType: KeyStoreType
 )
 
-private[recorder] case class CertificateAuthorityConfiguration(
-    certificatePath: String,
-    privateKeyPath:  String
+private[recorder] final case class CertificateAuthorityConfiguration(
+    certificatePath: Path,
+    privateKeyPath: Path
 )
 
-private[recorder] case class HttpsModeConfiguration(
-    mode:                 HttpsMode,
-    keyStore:             KeyStoreConfiguration,
+private[recorder] final case class HttpsModeConfiguration(
+    mode: HttpsMode,
+    keyStore: KeyStoreConfiguration,
     certificateAuthority: CertificateAuthorityConfiguration
 )
 
-private[recorder] case class OutgoingProxyConfiguration(
-    host:     Option[String],
+private[recorder] final case class OutgoingProxyConfiguration(
+    host: Option[String],
     username: Option[String],
     password: Option[String],
-    port:     Option[Int],
-    sslPort:  Option[Int]
+    port: Option[Int],
+    sslPort: Option[Int]
 )
 
-private[recorder] case class ProxyConfiguration(
-    port:     Int,
-    https:    HttpsModeConfiguration,
+private[recorder] final case class ProxyConfiguration(
+    port: Int,
+    https: HttpsModeConfiguration,
     outgoing: OutgoingProxyConfiguration
 )
 
-private[recorder] case class NettyConfiguration(
+private[recorder] final case class NettyConfiguration(
     maxInitialLineLength: Int,
-    maxHeaderSize:        Int,
-    maxChunkSize:         Int,
-    maxContentLength:     Int
+    maxHeaderSize: Int,
+    maxChunkSize: Int,
+    maxContentLength: Int
 )
 
-private[recorder] case class RecorderConfiguration(
-    core:    CoreConfiguration,
+private[recorder] final case class RecorderConfiguration(
+    core: CoreConfiguration,
     filters: FiltersConfiguration,
-    http:    HttpConfiguration,
-    proxy:   ProxyConfiguration,
-    netty:   NettyConfiguration,
-    config:  Config
+    http: HttpConfiguration,
+    proxy: ProxyConfiguration,
+    netty: NettyConfiguration,
+    config: Config
 )

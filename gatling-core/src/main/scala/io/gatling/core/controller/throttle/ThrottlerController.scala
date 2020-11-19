@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,16 +26,16 @@ sealed trait ThrottlerControllerCommand
 
 object ThrottlerControllerCommand {
   case object Start extends ThrottlerControllerCommand
-  case class OverrideStart(overrides: Throttlings) extends ThrottlerControllerCommand
+  final case class OverrideStart(overrides: Throttlings) extends ThrottlerControllerCommand
   case object OverrideStop extends ThrottlerControllerCommand
   case object Tick extends ThrottlerControllerCommand
 }
 
 private[throttle] class ThrottlerController(throttler: ActorRef, defaults: Throttlings) extends ThrottlerControllerFSM {
 
-  import ThrottlerControllerState._
-  import ThrottlerControllerData._
   import ThrottlerControllerCommand._
+  import ThrottlerControllerData._
+  import ThrottlerControllerState._
 
   def notifyThrottler(throttlings: Throttlings, tick: Int): Unit = {
 
@@ -52,7 +52,7 @@ private[throttle] class ThrottlerController(throttler: ActorRef, defaults: Throt
   when(WaitingToStart) {
 
     case Event(Start, NoData) =>
-      system.scheduler.schedule(Duration.Zero, 1 second, self, Tick)
+      system.scheduler.scheduleWithFixedDelay(Duration.Zero, 1 second, self, Tick)
       notifyThrottler(defaults, 0)
       goto(Started) using StartedData(0)
   }

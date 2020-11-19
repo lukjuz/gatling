@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@ package io.gatling.recorder.scenario.template
 
 import io.gatling.commons.util.StringHelper.Eol
 
-import com.dongxiguo.fastring.Fastring.Implicits._
-
 private[scenario] object ValuesTemplate {
-  def render(values: Seq[Value]): Fastring =
-    values.sortBy(_.name).map(value => fast"    val ${value.name} = ${protectWithTripleQuotes(value.value)}")
-      .mkFastring(Eol)
+  def render(values: Seq[Value]): String =
+    values
+      .sortBy(_.name)
+      .map(value => s"    val ${value.name} = ${protectWithTripleQuotes(value.value)}")
+      .mkString(Eol)
 }

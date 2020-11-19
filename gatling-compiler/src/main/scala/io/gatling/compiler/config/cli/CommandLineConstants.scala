@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@
 
 package io.gatling.compiler.config.cli
 
-private[cli] case class CommandLineConstant(full: String, abbr: String)
+private final case class CommandLineConstant(full: String, abbr: String)
 
-private[cli] object CommandLineConstants {
+private object CommandLineConstants {
   val SimulationsFolder = CommandLineConstant("simulations-folder", "sf")
   val BinariesFolder = CommandLineConstant("binaries-folder", "bf")
   val ExtraScalacOptions = CommandLineConstant("extra-scalac-options", "eso")

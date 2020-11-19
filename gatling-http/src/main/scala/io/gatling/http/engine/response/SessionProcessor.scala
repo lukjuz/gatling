@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@ package io.gatling.http.engine.response
 import io.gatling.commons.stats.{ KO, OK, Status }
 import io.gatling.commons.util.Clock
 import io.gatling.core.session.Session
-import io.gatling.http.cache.HttpCaches
+import io.gatling.http.cache.{ Http2PriorKnowledgeSupport, HttpCaches }
 import io.gatling.http.check.{ ErrorCheck, HttpCheck }
 import io.gatling.http.client.Request
-import io.gatling.http.client.ahc.uri.Uri
+import io.gatling.http.client.uri.Uri
 import io.gatling.http.cookie.CookieSupport
 import io.gatling.http.protocol.HttpProtocol
 import io.gatling.http.referer.RefererHandling
@@ -30,21 +30,21 @@ import io.gatling.http.response.{ HttpFailure, Response }
 import io.gatling.http.util.HttpHelper
 
 sealed abstract class SessionProcessor(
-    notSilent:    Boolean,
-    request:      Request,
-    checks:       List[HttpCheck],
-    errorChecks:  List[ErrorCheck],
-    httpCaches:   HttpCaches,
+    silent: Boolean,
+    request: Request,
+    checks: List[HttpCheck],
+    errorChecks: List[ErrorCheck],
+    httpCaches: HttpCaches,
     httpProtocol: HttpProtocol,
-    clock:        Clock
+    clock: Clock
 ) {
 
-  def updateSessionCrashedWithChecks(failure: HttpFailure, session: Session): (Session, Option[String]) = {
+  def updateSessionCrashedWithChecks(failure: HttpFailure, computeUpdates: Boolean, session: Session): (Session, Option[String]) = {
     def updateSessionAfterChecks(s1: Session, status: Status): Session = {
       updateSessionStats(s1, failure.startTimestamp, failure.endTimestamp, status)
     }
 
-    val (sessionWithCheckSavedValues, checkError) = ErrorCheckProcessor.check(session, failure, errorChecks)
+    val (sessionWithCheckSavedValues, checkError) = ErrorCheckProcessor.check(session, failure, errorChecks, computeUpdates)
 
     val sessionWithHttp2PriorKnowledge = sessionWithCheckSavedValues
 
@@ -58,7 +58,9 @@ sealed abstract class SessionProcessor(
     updateSessionStats(session, startTimestamp, endTimestamp, KO)
 
   private def updateSessionStats(session: Session, startTimestamp: Long, endTimestamp: Long, status: Status): Session =
-    if (notSilent) {
+    if (silent) {
+      session
+    } else {
       val sessionWithUpdatedStatus =
         if (status == KO) {
           session.markAsFailed
@@ -66,9 +68,7 @@ sealed abstract class SessionProcessor(
           session
         }
 
-      updateGroupStats(sessionWithUpdatedStatus, startTimestamp, endTimestamp, status)
-    } else {
-      session
+      updateGroupRequestTimings(sessionWithUpdatedStatus, startTimestamp, endTimestamp)
     }
 
   def updatedSession(session: Session, response: Response): (Session, Option[String]) = {
@@ -76,14 +76,14 @@ sealed abstract class SessionProcessor(
     def updateSessionAfterChecks(s1: Session, status: Status): Session = {
       val s2 = CookieSupport.storeCookies(s1, request.getUri, response.cookies, clock.nowMillis)
       val s3 = updateReferer(s2, response)
-      val s4 = httpCaches.cacheContent(s3, httpProtocol, request, response)
+      val s4 = httpCaches.cacheContent(s3, httpProtocol, request, response.headers)
       updateSessionStats(s4, response.startTimestamp, response.endTimestamp, status)
     }
 
     val (sessionWithCheckSavedValues, checkError) = CheckProcessor.check(session, response, checks)
     val sessionWithHttp2PriorKnowledge =
       if (httpProtocol.enginePart.enableHttp2) {
-        httpCaches.updateSessionHttp2PriorKnowledge(sessionWithCheckSavedValues, response)
+        Http2PriorKnowledgeSupport.updateSessionHttp2PriorKnowledge(sessionWithCheckSavedValues, response)
       } else {
         sessionWithCheckSavedValues
       }
@@ -107,55 +107,51 @@ sealed abstract class SessionProcessor(
     }
 
   protected def updateReferer(session: Session, response: Response): Session
-  protected def updateGroupStats(session: Session, startTimestamp: Long, endTimestamp: Long, status: Status): Session
+  protected def updateGroupRequestTimings(session: Session, startTimestamp: Long, endTimestamp: Long): Session
 }
 
-class RootSessionProcessor(
-    notSilent:    Boolean,
-    request:      Request,
-    checks:       List[HttpCheck],
-    errorChecks:  List[ErrorCheck],
-    httpCaches:   HttpCaches,
+final class RootSessionProcessor(
+    silent: Boolean,
+    request: Request,
+    checks: List[HttpCheck],
+    errorChecks: List[ErrorCheck],
+    httpCaches: HttpCaches,
     httpProtocol: HttpProtocol,
-    clock:        Clock
+    clock: Clock
 ) extends SessionProcessor(
-  notSilent,
-  request,
-  checks,
-  errorChecks,
-  httpCaches,
-  httpProtocol,
-  clock
-) {
+      silent,
+      request,
+      checks,
+      errorChecks,
+      httpCaches,
+      httpProtocol,
+      clock
+    ) {
   override protected def updateReferer(session: Session, response: Response): Session =
     RefererHandling.storeReferer(request, response, httpProtocol)(session)
 
-  override protected def updateGroupStats(session: Session, startTimestamp: Long, endTimestamp: Long, status: Status): Session =
-    if (notSilent) {
-      session.logGroupRequest(startTimestamp, endTimestamp, status)
-    } else {
-      session
-    }
+  override protected def updateGroupRequestTimings(session: Session, startTimestamp: Long, endTimestamp: Long): Session =
+    session.logGroupRequestTimings(startTimestamp, endTimestamp)
 }
 
-class ResourceSessionProcessor(
-    notSilent:    Boolean,
-    request:      Request,
-    checks:       List[HttpCheck],
-    errorChecks:  List[ErrorCheck],
-    httpCaches:   HttpCaches,
+final class ResourceSessionProcessor(
+    silent: Boolean,
+    request: Request,
+    checks: List[HttpCheck],
+    errorChecks: List[ErrorCheck],
+    httpCaches: HttpCaches,
     httpProtocol: HttpProtocol,
-    clock:        Clock
+    clock: Clock
 ) extends SessionProcessor(
-  notSilent,
-  request,
-  checks,
-  errorChecks,
-  httpCaches,
-  httpProtocol,
-  clock
-) {
+      silent,
+      request,
+      checks,
+      errorChecks,
+      httpCaches,
+      httpProtocol,
+      clock
+    ) {
   override protected def updateReferer(session: Session, response: Response): Session = session
 
-  override protected def updateGroupStats(session: Session, startTimestamp: Long, endTimestamp: Long, status: Status): Session = session
+  override protected def updateGroupRequestTimings(session: Session, startTimestamp: Long, endTimestamp: Long): Session = session
 }

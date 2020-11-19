@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,10 @@
 
 package io.gatling.charts.report
 
+import io.gatling.charts.stats.CountsVsTimePlot
 import io.gatling.charts.util.Colors._
 import io.gatling.commons.stats.{ OK, Status }
 import io.gatling.commons.util.Collections._
-import io.gatling.core.stats.CountsVsTimePlot
 
 private[charts] object ReportGenerator {
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,18 +19,15 @@ package io.gatling.http.client.body;
 import io.netty.buffer.ByteBufAllocator;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
 
 public abstract class RequestBody<T> {
 
   protected final T content;
   protected final String contentType;
-  protected final Charset charset;
 
-  public RequestBody(T content, String contentType, Charset charset) {
+  public RequestBody(T content, String contentType) {
     this.content = content;
     this.contentType = contentType;
-    this.charset = charset;
   }
 
   public T getContent() {
@@ -41,7 +38,7 @@ public abstract class RequestBody<T> {
     return contentType;
   }
 
-  public abstract WritableContent build(boolean zeroCopy, ByteBufAllocator alloc) throws IOException;
+  public abstract WritableContent build(ByteBufAllocator alloc) throws IOException;
 
   public abstract RequestBodyBuilder<T> newBuilder();
 

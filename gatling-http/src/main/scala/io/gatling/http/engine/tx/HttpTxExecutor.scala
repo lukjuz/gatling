@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,22 +21,25 @@ import io.gatling.core.util.NameGen
 import io.gatling.http.cache.{ ContentCacheEntry, HttpCaches, SslContextSupport }
 import io.gatling.http.client.HttpListener
 import io.gatling.http.client.util.Pair
-import io.gatling.http.engine.response._
 import io.gatling.http.engine.{ GatlingHttpListener, HttpEngine }
+import io.gatling.http.engine.response._
 import io.gatling.http.fetch.ResourceFetcher
 import io.gatling.http.protocol.HttpProtocol
+import io.gatling.http.response.HttpFailure
 
 import com.typesafe.scalalogging.StrictLogging
 
 class HttpTxExecutor(
-    coreComponents:        CoreComponents,
-    httpEngine:            HttpEngine,
-    httpCaches:            HttpCaches,
+    coreComponents: CoreComponents,
+    httpEngine: HttpEngine,
+    httpCaches: HttpCaches,
     defaultStatsProcessor: DefaultStatsProcessor,
-    httpProtocol:          HttpProtocol
-) extends SslContextSupport with NameGen with StrictLogging {
+    httpProtocol: HttpProtocol
+) extends NameGen
+    with StrictLogging {
 
   import coreComponents._
+  private val noopStatsProcessor = new NoopStatsProcessor(configuration.core.charset)
 
   private val resourceFetcher = new ResourceFetcher(coreComponents, httpCaches, httpProtocol, httpTxExecutor = this)
 
@@ -56,7 +59,9 @@ class HttpTxExecutor(
       case _ =>
         resourceFetcher.newResourceAggregatorForCachedPage(tx) match {
           case Some(aggregator) =>
-            logger.info(s"Fetching resources of cached page request=${tx.request.requestName} uri=$uri: scenario=${tx.session.scenario}, userId=${tx.session.userId}")
+            logger.info(
+              s"Fetching resources of cached page request=${tx.request.requestName} uri=$uri: scenario=${tx.session.scenario}, userId=${tx.session.userId}"
+            )
             aggregator.start(tx.session)
 
           case _ =>
@@ -97,7 +102,8 @@ class HttpTxExecutor(
       val uri = tx.request.clientRequest.getUri
       resourceFetcher.newResourceAggregatorForCachedPage(tx) match {
         case Some(aggregator) =>
-          logger.info(s"Fetching resources of cached page request=${tx.request.requestName} uri=$uri: scenario=${tx.session.scenario}, userId=${tx.session.userId}")
+          logger
+            .info(s"Fetching resources of cached page request=${tx.request.requestName} uri=$uri: scenario=${tx.session.scenario}, userId=${tx.session.userId}")
           aggregator.start(tx.session)
 
         case _ =>
@@ -118,41 +124,69 @@ class HttpTxExecutor(
 
   def execute(origTx: HttpTx, responseProcessorFactory: HttpTx => ResponseProcessor): Unit =
     executeWithCache(origTx) { tx =>
-      logger.debug(s"Sending request=${tx.request.requestName} uri=${tx.request.clientRequest.getUri}: scenario=${tx.session.scenario}, userId=${tx.session.userId}")
-
-      val ahcRequest = tx.request.clientRequest
-      val clientId = tx.session.userId
-      val shared = tx.request.requestConfig.httpProtocol.enginePart.shareConnections
-      val listener = new GatlingHttpListener(tx, coreComponents, responseProcessorFactory(tx))
-      val userSslContexts = sslContexts(tx.session)
-      val sslContext = userSslContexts.map(_.sslContext).orNull
-      val alplnSslContext = userSslContexts.flatMap(_.alplnSslContext).orNull
-
-      if (tx.request.requestConfig.throttled) {
-        throttler.throttle(tx.session.scenario, () => httpEngine.executeRequest(ahcRequest, clientId, shared, listener, sslContext, alplnSslContext))
+      if (tx.redirectCount >= tx.request.requestConfig.httpProtocol.responsePart.maxRedirects) {
+        val now = clock.nowMillis
+        responseProcessorFactory(tx).onComplete(
+          HttpFailure(
+            request = tx.request.clientRequest,
+            startTimestamp = now,
+            endTimestamp = now,
+            errorMessage = s"Too many redirects, max is ${tx.request.requestConfig.httpProtocol.responsePart.maxRedirects}"
+          )
+        )
       } else {
-        httpEngine.executeRequest(ahcRequest, clientId, shared, listener, sslContext, alplnSslContext)
+        logger.debug(
+          s"Sending request=${tx.request.requestName} uri=${tx.request.clientRequest.getUri}: scenario=${tx.session.scenario}, userId=${tx.session.userId}"
+        )
+
+        val clientRequest = tx.request.clientRequest
+        val clientId = tx.session.userId
+        val shared = tx.request.requestConfig.httpProtocol.enginePart.shareConnections
+        val listener = new GatlingHttpListener(tx, coreComponents.clock, responseProcessorFactory(tx))
+        val userSslContexts = SslContextSupport.sslContexts(tx.session)
+        val sslContext = userSslContexts.map(_.sslContext).orNull
+        val alpnSslContext = userSslContexts.flatMap(_.alpnSslContext).orNull
+
+        throttler match {
+          case Some(th) if tx.request.requestConfig.throttled =>
+            th.throttle(
+              tx.session.scenario,
+              () => httpEngine.executeRequest(clientRequest, clientId, shared, tx.session.eventLoop, listener, sslContext, alpnSslContext)
+            )
+          case _ =>
+            httpEngine.executeRequest(clientRequest, clientId, shared, tx.session.eventLoop, listener, sslContext, alpnSslContext)
+
+        }
       }
     }
 
   def execute(origTxs: Iterable[HttpTx], responseProcessorFactory: HttpTx => ResponseProcessor): Unit = {
     executeHttp2WithCache(origTxs) { txs =>
       val headTx = txs.head
-      txs.foreach(tx => logger.debug(s"Sending request=${tx.request.requestName} uri=${tx.request.clientRequest.getUri}: scenario=${tx.session.scenario}, userId=${tx.session.userId}"))
+      txs.foreach(
+        tx =>
+          logger.debug(
+            s"Sending request=${tx.request.requestName} uri=${tx.request.clientRequest.getUri} scenario=${tx.session.scenario}, userId=${tx.session.userId}"
+          )
+      )
       val requestsAndListeners = txs.map { tx =>
-        val listener: HttpListener = new GatlingHttpListener(tx, coreComponents, responseProcessorFactory(tx))
+        val listener: HttpListener = new GatlingHttpListener(tx, coreComponents.clock, responseProcessorFactory(tx))
         new Pair(tx.request.clientRequest, listener)
       }
       val clientId = headTx.session.userId
       val shared = headTx.request.requestConfig.httpProtocol.enginePart.shareConnections
-      val userSslContexts = sslContexts(headTx.session)
+      val userSslContexts = SslContextSupport.sslContexts(headTx.session)
       val sslContext = userSslContexts.map(_.sslContext).orNull
-      val alplnSslContext = userSslContexts.flatMap(_.alplnSslContext).orNull
+      val alpnSslContext = userSslContexts.flatMap(_.alpnSslContext).orNull
 
-      if (txs.head.request.requestConfig.throttled) {
-        throttler.throttle(headTx.session.scenario, () => httpEngine.executeHttp2Requests(requestsAndListeners, clientId, shared, sslContext, alplnSslContext))
-      } else {
-        httpEngine.executeHttp2Requests(requestsAndListeners, clientId, shared, sslContext, alplnSslContext)
+      throttler match {
+        case Some(th) if txs.head.request.requestConfig.throttled =>
+          th.throttle(
+            headTx.session.scenario,
+            () => httpEngine.executeHttp2Requests(requestsAndListeners, clientId, shared, headTx.session.eventLoop, sslContext, alpnSslContext)
+          )
+        case _ =>
+          httpEngine.executeHttp2Requests(requestsAndListeners, clientId, shared, headTx.session.eventLoop, sslContext, alpnSslContext)
       }
     }
   }
@@ -166,18 +200,17 @@ class HttpTxExecutor(
   private def newRootResponseProcessor(tx: HttpTx): ResponseProcessor =
     new DefaultResponseProcessor(
       tx,
-      sessionProcessor =
-        new RootSessionProcessor(
-          !tx.silent,
-          tx.request.clientRequest,
-          tx.request.requestConfig.checks,
-          tx.request.requestConfig.errorChecks,
-          httpCaches,
-          httpProtocol,
-          clock
-        ),
+      sessionProcessor = new RootSessionProcessor(
+        tx.silent,
+        tx.request.clientRequest,
+        tx.request.requestConfig.checks,
+        tx.request.requestConfig.errorChecks,
+        httpCaches,
+        httpProtocol,
+        clock
+      ),
       statsProcessor = statsProcessor(tx),
-      nextExecutor = new RootNextExecutor(tx, clock, resourceFetcher, this),
+      nextExecutor = new RootNextExecutor(tx, resourceFetcher, this),
       configuration.core.charset
     )
 
@@ -185,7 +218,7 @@ class HttpTxExecutor(
     new DefaultResponseProcessor(
       tx = tx.copy(session = resourceTx.aggregator.currentSession),
       sessionProcessor = new ResourceSessionProcessor(
-        !tx.silent,
+        tx.silent,
         tx.request.clientRequest,
         tx.request.requestConfig.checks,
         tx.request.requestConfig.errorChecks,
@@ -199,5 +232,5 @@ class HttpTxExecutor(
     )
 
   def statsProcessor(tx: HttpTx): StatsProcessor =
-    if (tx.silent) NoopStatsProcessor else defaultStatsProcessor
+    if (tx.silent) noopStatsProcessor else defaultStatsProcessor
 }

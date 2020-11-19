@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import io.gatling.http.client.HttpClientConfig;
 import io.gatling.http.client.WebSocketListener;
 import io.gatling.http.client.impl.request.WritableRequest;
 import io.gatling.http.client.impl.request.WritableRequestBuilder;
+import io.gatling.http.client.proxy.HttpProxyServer;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -79,14 +80,20 @@ public class WebSocketHandler extends ChannelDuplexHandler {
       try {
         WritableRequest request = WritableRequestBuilder.buildRequest(tx.request, ctx.alloc(), config, false);
 
+        boolean absoluteUpgradeUrl = !tx.request.getUri().isSecured() && tx.request.getProxyServer() instanceof HttpProxyServer;
         handshaker =
           WebSocketClientHandshakerFactory.newHandshaker(
-            tx.request.getUri().toJavaNetURI(),
-            WebSocketVersion.V13,
-            tx.request.getWsSubprotocol(),
-            true,
-            request.getRequest().headers(),
-            Integer.MAX_VALUE);
+            tx.request.getUri().toJavaNetURI(), // webSocketURL
+            WebSocketVersion.V13, // version
+            tx.request.getWsSubprotocol(), // subprotocol
+            true, // allowExtensions
+            request.getRequest().headers(), // customHeaders
+            Integer.MAX_VALUE, // maxFramePayloadLength
+            true, // performMasking
+            false, // allowMaskMismatch
+            -1, //forceCloseTimeoutMillis
+            absoluteUpgradeUrl
+          );
 
         handshaker.handshake(ctx.channel());
 
@@ -136,7 +143,7 @@ public class WebSocketHandler extends ChannelDuplexHandler {
       } else if (frame instanceof BinaryWebSocketFrame) {
         wsListener.onBinaryFrame((BinaryWebSocketFrame) frame);
       } else if (frame instanceof PingWebSocketFrame) {
-        ctx.write(new PongWebSocketFrame(frame.content().retain()));
+        ctx.writeAndFlush(new PongWebSocketFrame(frame.content().retain()));
       } else if (frame instanceof PongWebSocketFrame) {
         wsListener.onPongFrame((PongWebSocketFrame) frame);
       } else if (frame instanceof CloseWebSocketFrame) {
@@ -159,7 +166,7 @@ public class WebSocketHandler extends ChannelDuplexHandler {
 
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-    LOGGER.debug("exceptionCaught");
+    LOGGER.debug("exceptionCaught", cause);
     crash(ctx, cause, true);
   }
 }

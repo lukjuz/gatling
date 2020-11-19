@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,22 +20,20 @@ import io.gatling.commons.util.Clock
 import io.gatling.core.session.{ Expression, LoopBlock, Session }
 import io.gatling.core.stats.StatsEngine
 
-import akka.actor.ActorSystem
-
 class Loop(
     continueCondition: Expression[Boolean],
-    counterName:       String,
-    exitASAP:          Boolean,
-    timeBased:         Boolean,
-    statsEngine:       StatsEngine,
-    clock:             Clock,
+    counterName: String,
+    exitASAP: Boolean,
+    timeBased: Boolean,
+    statsEngine: StatsEngine,
+    clock: Clock,
     override val name: String,
-    next:              Action
+    next: Action
 ) extends Action {
 
   private[this] var innerLoop: Action = _
 
-  private[core] def initialize(loopNext: Action, actorSystem: ActorSystem): Unit = {
+  private[core] def initialize(loopNext: Action): Unit = {
 
     val counterIncrement = (session: Session) =>
       if (session.contains(counterName)) {
@@ -46,23 +44,22 @@ class Loop(
         session.enterLoop(counterName, continueCondition, next, exitASAP)
       }
 
-    innerLoop = new InnerLoop(continueCondition, loopNext, counterIncrement, counterName, actorSystem, name + "-inner", next)
+    innerLoop = new InnerLoop(continueCondition, loopNext, counterIncrement, name + "-inner", next)
   }
 
   override def execute(session: Session): Unit =
-    if (BlockExit.noBlockExitTriggered(session, statsEngine, clock.nowMillis)) {
-      innerLoop ! session
+    BlockExit.mustExit(session) match {
+      case Some(blockExit) => blockExit.exitBlock(statsEngine, clock.nowMillis)
+      case _               => innerLoop ! session
     }
 }
 
 class InnerLoop(
     continueCondition: Expression[Boolean],
-    loopNext:          Action,
-    counterIncrement:  Session => Session,
-    counterName:       String,
-    actorSystem:       ActorSystem,
-    val name:          String,
-    val next:          Action
+    loopNext: Action,
+    counterIncrement: Session => Session,
+    val name: String,
+    val next: Action
 ) extends ChainableAction {
 
   private[this] val lastUserIdThreadLocal = new ThreadLocal[Long]
@@ -86,9 +83,12 @@ class InnerLoop(
     if (LoopBlock.continue(continueCondition, incrementedSession)) {
 
       if (incrementedSession.userId == lastUserId) {
-        // except if we're running only one user, it's very likely we're hitting an empty loop
+        // except if we're running only one user per core, it's very likely we're hitting an empty loop
         // let's dispatch so we don't spin
-        actorSystem.dispatcher.execute(() => loopNext ! incrementedSession)
+        val eventLoop = session.eventLoop
+        if (!eventLoop.isShutdown) {
+          eventLoop.execute(() => loopNext ! incrementedSession)
+        }
 
       } else {
         loopNext ! incrementedSession

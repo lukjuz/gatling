@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,13 +25,13 @@ object MitmMessage {
 
   case object ServerChannelInactive extends MitmMessage
 
-  case class RequestReceived(request: FullHttpRequest) extends MitmMessage
+  final case class RequestReceived(request: FullHttpRequest) extends MitmMessage
 
-  case class ClientChannelActive(channel: Channel) extends MitmMessage
+  final case class ClientChannelActive(channel: Channel) extends MitmMessage
 
-  case class ClientChannelException(t: Throwable) extends MitmMessage
+  final case class ClientChannelException(t: Throwable) extends MitmMessage
 
-  case class ClientChannelInactive(channelId: ChannelId) extends MitmMessage
+  final case class ClientChannelInactive(channelId: ChannelId) extends MitmMessage
 
-  case class ResponseReceived(response: FullHttpResponse) extends MitmMessage
+  final case class ResponseReceived(response: FullHttpResponse) extends MitmMessage
 }

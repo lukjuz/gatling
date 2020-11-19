@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,28 +20,35 @@ import scala.concurrent.duration.FiniteDuration
 
 import com.softwaremill.quicklens._
 
-case class WsFrameCheckSequence[+T <: WsFrameCheck](timeout: FiniteDuration, checks: List[T]) {
+final case class WsFrameCheckSequence[+T <: WsFrameCheck](timeout: FiniteDuration, checks: List[T]) {
   require(checks.nonEmpty, "Can't pass empty check sequence")
 }
 
 sealed trait WsFrameCheck {
   def name: String
+  def isSilent: Boolean
 }
 
-case class WsBinaryFrameCheck(name: String, matchConditions: List[WsBinaryCheck], checks: List[WsBinaryCheck]) extends WsFrameCheck {
+final case class WsBinaryFrameCheck(name: String, matchConditions: List[WsBinaryCheck], checks: List[WsBinaryCheck], isSilent: Boolean) extends WsFrameCheck {
 
   def matching(newMatchConditions: WsBinaryCheck*): WsBinaryFrameCheck =
     this.modify(_.matchConditions).using(_ ::: newMatchConditions.toList)
 
   def check(newChecks: WsBinaryCheck*): WsBinaryFrameCheck =
     this.modify(_.checks).using(_ ::: newChecks.toList)
+
+  def silent: WsBinaryFrameCheck =
+    copy(isSilent = true)
 }
 
-case class WsTextFrameCheck(name: String, matchConditions: List[WsTextCheck], checks: List[WsTextCheck]) extends WsFrameCheck {
+final case class WsTextFrameCheck(name: String, matchConditions: List[WsTextCheck], checks: List[WsTextCheck], isSilent: Boolean) extends WsFrameCheck {
 
   def matching(newMatchConditions: WsTextCheck*): WsTextFrameCheck =
     this.modify(_.matchConditions).using(_ ::: newMatchConditions.toList)
 
   def check(newChecks: WsTextCheck*): WsTextFrameCheck =
     this.modify(_.checks).using(_ ::: newChecks.toList)
+
+  def silent: WsTextFrameCheck =
+    copy(isSilent = true)
 }

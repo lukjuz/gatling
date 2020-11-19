@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package io.gatling.recorder.controller
 
+import java.nio.file.Paths
 import java.util.concurrent.ConcurrentLinkedQueue
 
 import scala.collection.JavaConverters._
@@ -24,9 +25,10 @@ import scala.concurrent.duration.DurationLong
 import io.gatling.commons.util.Clock
 import io.gatling.commons.util.PathHelper._
 import io.gatling.commons.validation._
-import io.gatling.http.client.ahc.uri.Uri
-import io.gatling.recorder.config.RecorderMode._
+import io.gatling.core.filter.Filters
+import io.gatling.http.client.uri.Uri
 import io.gatling.recorder.config.RecorderConfiguration
+import io.gatling.recorder.config.RecorderMode._
 import io.gatling.recorder.http.Mitm
 import io.gatling.recorder.model._
 import io.gatling.recorder.scenario._
@@ -48,7 +50,7 @@ private[recorder] class RecorderController(clock: Clock) extends StrictLogging {
   def startRecording(): Unit = {
     val selectedMode = frontEnd.selectedRecorderMode
     val harFilePath = frontEnd.harFilePath
-    if (selectedMode == Har && !string2path(harFilePath).exists) {
+    if (selectedMode == Har && !Paths.get(harFilePath).exists) {
       frontEnd.handleMissingHarFile(harFilePath)
     } else {
       val simulationFile = ScenarioExporter.simulationFilePath
@@ -86,7 +88,8 @@ private[recorder] class RecorderController(clock: Clock) extends StrictLogging {
   }
 
   def receiveResponse(request: HttpRequest, response: HttpResponse): Unit =
-    if (RecorderConfiguration.configuration.filters.filters.forall(_.accept(request.uri))) {
+    if (RecorderConfiguration.configuration.filters.filters.forall(_.accept(request.uri))
+        && Filters.BrowserNoiseFilters.accept(request.uri)) {
       requests.add(TimedScenarioElement(request.timestamp, response.timestamp, RequestElement(request, response)))
 
       // Notify frontend

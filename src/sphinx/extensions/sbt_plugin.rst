@@ -11,7 +11,7 @@ Versions
 
 Check out available versions on `Bintray <https://bintray.com/gatling/sbt-plugins/gatling-sbt/view>`_.
 
-Beware that milestones (M versions) are undocumented and released for GatlingCorp customers.
+Beware that milestones (M versions) are not documented for OSS users and are only released for `FrontLine <https://gatling.io/gatling-frontline/>`_ customers.
 
 Setup
 =====
@@ -102,11 +102,11 @@ Additional tasks
 
 Gatling's SBT plugin also offers four additional tasks:
 
-* ``gatling(-it):startRecorder``: starts the Recorder, configured to save recorded simulations to the location specified by ``scalaSource in Gatling`` (by default, ``src/test/scala``).
-* ``gatling(-it):generateReport``: generates reports for a specified report folder.
-* ``gatling(-it):lastReport``: opens by the last generated report in your web browser. A simulation name can be specified to open the last report for that simulation.
-* ``gatling(-it):copyConfigFiles``: copies Gatling's configuration files (gatling.conf & recorder.conf) from the bundle into your project resources if they're missing.
-* ``gatling(-it):copyLogbackXml``: copies Gatling's default logback.xml.
+* ``gatling:startRecorder``: starts the Recorder, configured to save recorded simulations to the location specified by ``scalaSource in Gatling`` (by default, ``src/test/scala``).
+* ``gatling:generateReport``: generates reports for a specified report folder.
+* ``gatling:lastReport``: opens by the last generated report in your web browser. A simulation name can be specified to open the last report for that simulation.
+* ``gatling:copyConfigFiles``: copies Gatling's configuration files (gatling.conf & recorder.conf) from the bundle into your project resources if they're missing.
+* ``gatling:copyLogbackXml``: copies Gatling's default logback.xml.
 
 Overriding JVM options
 ======================

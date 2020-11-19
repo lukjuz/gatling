@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import io.gatling.http.response.HttpFailure
 
 object ErrorCheckProcessor {
 
-  private[response] def check(session: Session, failure: HttpFailure, checks: List[ErrorCheck]): (Session, Option[Failure]) = {
+  private[response] def check(session: Session, failure: HttpFailure, checks: List[ErrorCheck], computeUpdates: Boolean): (Session, Option[Failure]) = {
     Check.check(failure, session, checks)
   }
 }

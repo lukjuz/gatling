@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,20 +20,47 @@ import io.gatling.core.config.GatlingConfiguration
 
 import com.softwaremill.quicklens._
 
-case class SourceFeederBuilder[T](
-    source:        FeederSource[T],
+trait FeederBuilderBase[T] extends FeederBuilder {
+  type F <: FeederBuilderBase[T]
+  def queue: F
+  def random: F
+  def shuffle: F
+  def circular: F
+  def convert(f: PartialFunction[(String, T), Any]): F
+  def readRecords: Seq[Record[Any]]
+  def shard: F
+}
+
+trait FileBasedFeederBuilder[T] extends FeederBuilderBase[T] {
+  def unzip: F
+}
+
+trait BatchableFeederBuilder[T] extends FileBasedFeederBuilder[T] {
+  override type F <: BatchableFeederBuilder[T]
+  def eager: BatchableFeederBuilder[T]
+  def batch: BatchableFeederBuilder[T] = batch(Batch.DefaultBufferSize)
+  def batch(bufferSize: Int): BatchableFeederBuilder[T]
+}
+
+object SourceFeederBuilder {
+  def apply[T](source: FeederSource[T], configuration: GatlingConfiguration): SourceFeederBuilder[T] =
+    new SourceFeederBuilder(source, configuration, FeederOptions.default)
+}
+
+final case class SourceFeederBuilder[T](
+    source: FeederSource[T],
     configuration: GatlingConfiguration,
-    options:       FeederOptions[T]     = FeederOptions[T]()
-) extends FeederBuilder {
+    options: FeederOptions[T]
+) extends BatchableFeederBuilder[T] {
 
-  def shard: SourceFeederBuilder[T] = this.modify(_.options.shard).setTo(true)
+  override type F = BatchableFeederBuilder[T]
 
-  def batch: SourceFeederBuilder[T] = batch(2000)
-  def batch(bufferSize: Int): SourceFeederBuilder[T] = copy(options = options.copy(batch = Some(bufferSize)))
+  def queue: F = this.modify(_.options.strategy).setTo(Queue)
+  def random: F = this.modify(_.options.strategy).setTo(Random)
+  def shuffle: F = this.modify(_.options.strategy).setTo(Shuffle)
+  def circular: F = this.modify(_.options.strategy).setTo(Circular)
 
-  def unzip: SourceFeederBuilder[T] = this.modify(_.options.unzip).setTo(true)
-
-  def convert(f: PartialFunction[(String, T), Any]): SourceFeederBuilder[T] = {
+  override def convert(f: PartialFunction[(String, T), Any]): F = {
     val conversion: Record[T] => Record[Any] =
       _.map {
         case pair if f.isDefinedAt(pair) => pair._1 -> f(pair)
@@ -43,21 +70,33 @@ case class SourceFeederBuilder[T](
     this.modify(_.options.conversion).setTo(Some(conversion))
   }
 
-  def queue: SourceFeederBuilder[T] = this.modify(_.options.strategy).setTo(Queue)
-  def random: SourceFeederBuilder[T] = this.modify(_.options.strategy).setTo(Random)
-  def shuffle: SourceFeederBuilder[T] = this.modify(_.options.strategy).setTo(Shuffle)
-  def circular: SourceFeederBuilder[T] = this.modify(_.options.strategy).setTo(Circular)
+  override def readRecords: Seq[Record[Any]] = apply().toVector
+
+  override def unzip: F = this.modify(_.options.unzip).setTo(true)
+
+  override def eager: F = this.modify(_.options.loadingMode).setTo(Eager)
+  override def batch(bufferSize: Int): F = this.modify(_.options.loadingMode).setTo(Batch(bufferSize))
+  override def shard: F = this.modify(_.options.shard).setTo(true)
 
   override def apply(): Feeder[Any] = source.feeder(options, configuration)
-
-  def readRecords: Seq[Record[Any]] = apply().toVector
 }
 
-case class FeederOptions[T](
-    shard:      Boolean                          = false,
-    unzip:      Boolean                          = false,
-    conversion: Option[Record[T] => Record[Any]] = None,
-    strategy:   FeederStrategy                   = Queue,
-    batch:      Option[Int]                      = None
-)
+private[feeder] trait FeederLoadingMode
+private[feeder] case object Eager extends FeederLoadingMode
+private[feeder] object Batch {
+  val DefaultBufferSize: Int = 2000
+}
+private[feeder] final case class Batch(bufferSize: Int) extends FeederLoadingMode
+private[feeder] case object Adaptive extends FeederLoadingMode
 
+object FeederOptions {
+  def default[T]: FeederOptions[T] = new FeederOptions[T](shard = false, unzip = false, conversion = None, strategy = Queue, loadingMode = Adaptive)
+}
+
+final case class FeederOptions[T](
+    shard: Boolean,
+    unzip: Boolean,
+    conversion: Option[Record[T] => Record[Any]],
+    strategy: FeederStrategy,
+    loadingMode: FeederLoadingMode
+)

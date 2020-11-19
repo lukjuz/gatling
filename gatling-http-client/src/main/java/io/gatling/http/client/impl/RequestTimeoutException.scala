@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,13 @@ package io.gatling.http.client.impl
 import java.net.InetSocketAddress
 import java.util.concurrent.TimeoutException
 
-import io.gatling.netty.util.ahc.StringBuilderPool
+import io.gatling.netty.util.StringBuilderPool
 
 object RequestTimeoutException {
   private def message(timeout: Long, remoteAddress: InetSocketAddress) = {
     val message = StringBuilderPool.DEFAULT.get.append("Request timeout")
     if (remoteAddress != null) {
-      message.append(" to ").append(remoteAddress.getHostName)
+      message.append(" to ").append(remoteAddress.getHostString)
       if (!remoteAddress.isUnresolved) message.append('/').append(remoteAddress.getAddress.getHostAddress)
       message.append(':').append(remoteAddress.getPort)
     }
@@ -34,9 +34,8 @@ object RequestTimeoutException {
 }
 
 class RequestTimeoutException private[impl] (
-    val timeout:       Long,
+    val timeout: Long,
     val remoteAddress: InetSocketAddress
-)
-  extends TimeoutException(RequestTimeoutException.message(timeout, remoteAddress)) {
+) extends TimeoutException(RequestTimeoutException.message(timeout, remoteAddress)) {
   override def fillInStackTrace: Throwable = this
 }

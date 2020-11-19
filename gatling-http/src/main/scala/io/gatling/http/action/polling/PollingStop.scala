@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,20 +17,22 @@
 package io.gatling.http.action.polling
 
 import io.gatling.commons.util.Clock
-import io.gatling.commons.validation.Validation
+import io.gatling.commons.validation._
 import io.gatling.core.action.Action
 import io.gatling.core.session._
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
 import io.gatling.http.action.UnnamedRequestAction
 
-class PollingStop(pollerName: String, statsEngine: StatsEngine, val clock: Clock, val next: Action)
-  extends UnnamedRequestAction(statsEngine) with PollingAction with NameGen {
+class PollingStop(pollerName: String, statsEngine: StatsEngine, val clock: Clock, val next: Action) extends UnnamedRequestAction(statsEngine) with NameGen {
 
   override val name: String = genName("pollingStop")
 
   override def sendRequest(requestName: String, session: Session): Validation[Unit] =
-    for {
-      pollingActor <- fetchActor(pollerName, session)
-    } yield pollingActor ! StopPolling(next, session)
+    session.attributes.get(pollerName) match {
+      case Some(poller) =>
+        poller.asInstanceOf[Poller].stop(next, session)
+        Validation.unit
+      case _ => "Couldn't fetch poller".failure
+    }
 }

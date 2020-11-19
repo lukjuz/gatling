@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ class HttpProtocolSample extends Simulation {
 
   {
     val httpProtocol = http
-      //#silentUri
+    //#silentUri
       .silentUri("https://myCDN/.*")
       //#silentUri
       //#headers
@@ -89,14 +89,15 @@ class HttpProtocolSample extends Simulation {
         Proxy("myHttpProxyHost", 8080)
           .httpsPort(8143)
           .credentials("myUsername", "myPassword")
-      ).proxy(
-          Proxy("mySocks4ProxyHost", 8080)
-            .socks4
-        ).proxy(
-            Proxy("mySocks5ProxyHost", 8080)
-              .httpsPort(8143)
-              .socks5
-          )
+      )
+      .proxy(
+        Proxy("mySocks4ProxyHost", 8080).socks4
+      )
+      .proxy(
+        Proxy("mySocks5ProxyHost", 8080)
+          .httpsPort(8143)
+          .socks5
+      )
     //#proxy
 
   }
@@ -117,9 +118,15 @@ class HttpProtocolSample extends Simulation {
 
   {
     //#http2PriorKnowledge
-    val httpProtocol = http
-      .enableHttp2
+    val httpProtocol = http.enableHttp2
       .http2PriorKnowledge(Map("www.google.com" -> true, "gatling.io" -> false))
     //#http2PriorKnowledge
+  }
+
+  {
+    //#hostNameAliases
+    val httpProtocol = http
+      .hostNameAliases(Map("gatling.io" -> List("192.168.0.1", "192.168.0.2")))
+    //#hostNameAliases
   }
 }

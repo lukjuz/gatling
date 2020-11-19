@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,22 +23,14 @@ import io.gatling.core.config._
 
 class FeederBuilderSpec extends BaseSpec with FeederSupport {
 
-  private implicit val configuration = GatlingConfiguration.loadForTest()
+  private implicit val configuration: GatlingConfiguration = GatlingConfiguration.loadForTest()
 
   "FeederSupport.separatedValues" should "throw an exception when provided with bad resource" in {
     an[IllegalArgumentException] should be thrownBy
       separatedValues("fileDoesNotExist", SeparatedValuesParser.CommaSeparator, quoteChar = '\'')
   }
 
-  "FeederSupport.seq2FeederBuilder" should "be able to use all the strategies" in {
-    val builder = IndexedSeq(Map("foo" -> "bar"))
-    builder.queue.options.strategy shouldBe Queue
-    builder.random.options.strategy shouldBe Random
-    builder.shuffle.options.strategy shouldBe Shuffle
-    builder.circular.options.strategy shouldBe Circular
-  }
-
-  it should "build a Feeder with a queue strategy" in {
+  "FeederSupport.seq2FeederBuilder" should "build a Feeder with a queue strategy" in {
     val queuedFeeder = IndexedSeq(Map("1" -> "Test"), Map("2" -> "Test")).queue.apply
     queuedFeeder.toArray shouldBe Array(Map("1" -> "Test"), Map("2" -> "Test"))
   }
@@ -46,7 +38,9 @@ class FeederBuilderSpec extends BaseSpec with FeederSupport {
   it should "build a Feeder with a random strategy" in {
     val fiftyTimes = 1 to 50
     val orderedMaps =
-      fiftyTimes.foldLeft(IndexedSeq.empty[Record[String]]) { (acc, id) => Map(id.toString -> "Test") +: acc }
+      fiftyTimes.foldLeft(IndexedSeq.empty[Record[String]]) { (acc, id) =>
+        Map(id.toString -> "Test") +: acc
+      }
 
     val testsOutcome: immutable.IndexedSeq[Boolean] =
       (1 to 3).map { _ =>
@@ -62,7 +56,9 @@ class FeederBuilderSpec extends BaseSpec with FeederSupport {
   it should "build a Feeder with a shuffle strategy" in {
     val fiftyTimes = 1 to 50
     val orderedMaps =
-      fiftyTimes.foldLeft(IndexedSeq.empty[Record[String]]) { (acc, id) => Map(id.toString -> "Test") +: acc }
+      fiftyTimes.foldLeft(IndexedSeq.empty[Record[String]]) { (acc, id) =>
+        Map(id.toString -> "Test") +: acc
+      }
 
     val shuffledOutcome: immutable.IndexedSeq[IndexedSeq[Record[_]]] =
       (1 to 3).map { _ =>
@@ -85,43 +81,24 @@ class FeederBuilderSpec extends BaseSpec with FeederSupport {
   "RecordSeqFeederBuilder" should "be able to have a record converted" in {
     val queuedFeeder = IndexedSeq(Map("1" -> "Test"), Map("2" -> "Test"))
 
-    val convertedValue: Option[Any] = queuedFeeder.convert {
-      case ("1", attr) => attr.concat("s are boring !")
-    }.apply.next().get("1")
+    val convertedValue: Option[Any] = queuedFeeder
+      .convert {
+        case ("1", attr) => attr.concat("s are boring !")
+      }
+      .apply
+      .next()
+      .get("1")
 
     convertedValue.fold(fail("Could not find key"))(_ shouldBe "Tests are boring !")
 
-    val cantConvert: Option[Any] = queuedFeeder.convert {
-      case ("Can't find because don't exist", shouldKeepAsIs) => shouldKeepAsIs.concat("s are boring !")
-    }.apply.next().get("1")
+    val cantConvert: Option[Any] = queuedFeeder
+      .convert {
+        case ("Can't find because don't exist", shouldKeepAsIs) => shouldKeepAsIs.concat("s are boring !")
+      }
+      .apply
+      .next()
+      .get("1")
 
     cantConvert.fold(fail("Could not find key"))(_ shouldBe "Test")
   }
-
-  // [fl]
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  // [fl]
 }

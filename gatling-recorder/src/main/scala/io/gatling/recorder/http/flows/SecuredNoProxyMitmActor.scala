@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@ package io.gatling.recorder.http.flows
 
 import io.gatling.commons.util.Clock
 import io.gatling.recorder.http.{ ClientHandler, Mitm, TrafficLogger }
-import io.gatling.recorder.http.Netty._
-import io.gatling.recorder.http.ssl.{ SslClientContext, SslServerContext }
 import io.gatling.recorder.http.Mitm._
+import io.gatling.recorder.http.Netty._
 import io.gatling.recorder.http.flows.MitmActorFSM._
+import io.gatling.recorder.http.ssl.{ SslClientContext, SslServerContext }
 
 import io.netty.bootstrap.Bootstrap
 import io.netty.channel.Channel
@@ -46,13 +46,12 @@ import io.netty.util.concurrent.Future
  * @param trafficLogger log the traffic
  */
 class SecuredNoProxyMitmActor(
-    serverChannel:    Channel,
-    clientBootstrap:  Bootstrap,
+    serverChannel: Channel,
+    clientBootstrap: Bootstrap,
     sslServerContext: SslServerContext,
-    trafficLogger:    TrafficLogger,
-    clock:            Clock
-)
-  extends SecuredMitmActor(serverChannel, clientBootstrap, sslServerContext) {
+    trafficLogger: TrafficLogger,
+    clock: Clock
+) extends SecuredMitmActor(serverChannel, clientBootstrap, sslServerContext) {
 
   override protected def connectedRemote(requestRemote: Remote): Remote = requestRemote
 
@@ -74,14 +73,16 @@ class SecuredNoProxyMitmActor(
       serverChannel.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK))
 
     } else {
-      clientSslHandler.handshakeFuture().addListener((future: Future[Channel]) => {
-        if (future.isSuccess) {
-          // propagate
-          clientChannel.writeAndFlush(pendingRequest.filterSupportedEncodings)
-        } else {
-          throw future.cause
-        }
-      })
+      clientSslHandler
+        .handshakeFuture()
+        .addListener((future: Future[Channel]) => {
+          if (future.isSuccess) {
+            // propagate
+            clientChannel.writeAndFlush(pendingRequest.filterSupportedEncodings)
+          } else {
+            throw future.cause
+          }
+        })
     }
 
     goto(Connected) using ConnectedData(remote, clientChannel)

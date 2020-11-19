@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package io.gatling.core.feeder
 
 import java.util.concurrent.ThreadLocalRandom
 
-import io.gatling.commons.util.RoundRobin
+import io.gatling.commons.util.CircularIterator
 
 object InMemoryFeeder {
 
@@ -32,7 +32,7 @@ object InMemoryFeeder {
       case Queue    => convertedRecords.iterator
       case Random   => Iterator.continually(convertedRecords(ThreadLocalRandom.current.nextInt(records.length)))
       case Shuffle  => scala.util.Random.shuffle(convertedRecords).iterator
-      case Circular => RoundRobin(convertedRecords)
+      case Circular => CircularIterator(convertedRecords, threadSafe = false)
     }
   }
 }

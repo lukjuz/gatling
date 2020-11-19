@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.gatling.core.action.builder
 
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration.FiniteDuration
 
 import io.gatling.core.action.{ Action, Pause }
 import io.gatling.core.pause.{ Disabled, PauseType }
@@ -31,13 +31,13 @@ import io.gatling.core.util.NameGen
  * @param duration mean duration of the generated pause
  * @param force if the global pause type has to be overridden
  */
-class PauseBuilder(duration: Expression[Duration], force: Option[PauseType]) extends ActionBuilder with NameGen {
+class PauseBuilder(duration: Expression[FiniteDuration], force: Option[PauseType]) extends ActionBuilder with NameGen {
 
   override def build(ctx: ScenarioContext, next: Action): Action =
     force.getOrElse(ctx.pauseType) match {
       case Disabled => next
       case pauseType =>
         val generator = pauseType.generator(duration)
-        new Pause(generator, ctx.coreComponents.actorSystem, ctx.coreComponents.statsEngine, ctx.coreComponents.clock, genName("pause"), next)
+        new Pause(generator, ctx.coreComponents.statsEngine, ctx.coreComponents.clock, genName("pause"), next)
     }
 }

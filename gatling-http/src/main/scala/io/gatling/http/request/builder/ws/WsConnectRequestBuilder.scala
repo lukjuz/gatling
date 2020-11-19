@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package io.gatling.http.request.builder.ws
 
+import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session.Expression
 import io.gatling.http.action.ws.WsConnectBuilder
 import io.gatling.http.client.Request
@@ -28,12 +29,19 @@ object WsConnectRequestBuilder {
     WsConnectBuilder(requestBuilder, Nil, None)
 }
 
-case class WsConnectRequestBuilder(commonAttributes: CommonAttributes, wsName: String, subprotocol: Option[String]) extends RequestBuilder[WsConnectRequestBuilder] {
+final class WsConnectRequestBuilder(val commonAttributes: CommonAttributes, val wsName: String, val subprotocol: Option[Expression[String]])
+    extends RequestBuilder[WsConnectRequestBuilder] {
 
-  def subprotocol(sub: String): WsConnectRequestBuilder = copy(subprotocol = Some(sub))
+  def subprotocol(sub: Expression[String]): WsConnectRequestBuilder = new WsConnectRequestBuilder(commonAttributes, wsName, Some(sub))
 
   private[http] def newInstance(commonAttributes: CommonAttributes) = new WsConnectRequestBuilder(commonAttributes, wsName, subprotocol)
 
-  def build(httpComponents: HttpComponents): Expression[Request] =
-    new WsRequestExpressionBuilder(commonAttributes, httpComponents.httpCaches, httpComponents.httpProtocol, httpComponents.coreComponents.configuration, subprotocol).build
+  def build(httpComponents: HttpComponents, configuration: GatlingConfiguration): Expression[Request] =
+    new WsRequestExpressionBuilder(
+      commonAttributes,
+      httpComponents.httpCaches,
+      httpComponents.httpProtocol,
+      configuration,
+      subprotocol
+    ).build
 }

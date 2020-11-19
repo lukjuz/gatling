@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,10 @@
 package io.gatling.http.client.test.listener;
 
 import static java.nio.charset.StandardCharsets.*;
-import static io.gatling.http.client.ahc.util.HttpUtils.*;
-import static io.gatling.http.client.ahc.util.MiscUtils.*;
+import static io.gatling.http.client.util.HttpUtils.*;
+import static io.gatling.http.client.util.MiscUtils.*;
 
-import io.gatling.netty.util.ahc.ByteBufUtils;
+import io.gatling.netty.util.ByteBufUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpHeaderNames;

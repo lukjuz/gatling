@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,9 +24,11 @@ import io.gatling.commons.util.Collections._
 class OpenInjectionStepSpec extends BaseSpec {
 
   private def scheduling(steps: OpenInjectionStep*): List[FiniteDuration] =
-    steps.reverse.foldLeft[Iterator[FiniteDuration]](Iterator.empty) { (it, step) =>
-      step.chain(it)
-    }.toList
+    steps.reverse
+      .foldLeft[Iterator[FiniteDuration]](Iterator.empty) { (it, step) =>
+        step.chain(it)
+      }
+      .toList
 
   "RampInjection" should "return the correct number of users" in {
     RampOpenInjection(5, 1 second).users shouldBe 5
@@ -129,16 +131,19 @@ class OpenInjectionStepSpec extends BaseSpec {
 
     val constantRampScheduling = scheduling(RampRateOpenInjection(1.0, 1.0, 10 seconds))
 
-    val steps = constantRampScheduling.zip(constantRampScheduling.drop(1)).map {
-      case (i1, i2) => i2 - i1
-    }.toSet[FiniteDuration]
+    val steps = constantRampScheduling
+      .zip(constantRampScheduling.drop(1))
+      .map {
+        case (i1, i2) => i2 - i1
+      }
+      .toSet[FiniteDuration]
 
     constantRampScheduling shouldBe sorted
     steps.size shouldBe 1
     constantRampScheduling.last shouldBe <(10 seconds)
   }
 
-  val heavisideScheduling = HeavisideOpenInjection(100, 5 seconds).chain(Iterator.empty).toList
+  private val heavisideScheduling = HeavisideOpenInjection(100, 5 seconds).chain(Iterator.empty).toList
   "HeavisideInjection" should "provide an appropriate number of users" in {
     heavisideScheduling.length shouldBe 100
   }
@@ -150,7 +155,7 @@ class OpenInjectionStepSpec extends BaseSpec {
   }
 
   it should "have most of the scheduling values close to half of the duration" in {
-    val l = heavisideScheduling.count((t) => (t > (1.5 seconds)) && (t < (3.5 seconds)))
+    val l = heavisideScheduling.count(t => (t > (1.5 seconds)) && (t < (3.5 seconds)))
     l shouldBe 67 // two thirds
   }
 

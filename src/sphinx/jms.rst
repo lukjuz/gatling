@@ -13,7 +13,7 @@ Gatling JMS DSL is not imported by default.
 
 One has to manually add the following imports:
 
-.. includecode:: code/JmsSample.scala#imports
+.. includecode:: code/JmsSample.scala#imprts
 
 JMS Protocol
 ============
@@ -59,16 +59,15 @@ Currently, ``requestReply`` and ``send`` (fire and forget) requests are supporte
 Destination
 -----------
 
-Define the target destination with ``queue("queueName")`` or alternatively with ``destination(JmsDestination)``
+Define the target destination with ``queue("queueName")`` or alternatively with ``destination(JmsDestination)``.
 
 Optionally define reply destination with ``replyQueue("responseQueue")`` or ``replyDestination(JmsDestination)``, otherwise a dynamic queue will be used.
-If you do so, you have to possibility of not setting the `JMSReplyTo` header with ``noJmsReplyTo``.
+If you do so, you have the possibility of not setting the `JMSReplyTo` header with ``noJmsReplyTo``.
 
-Additionally for reply destination JMS selector can be defined with ``selector("selector")``
+Additionally for reply destination, JMS selector can be defined with ``selector(Expression[String])``
 
-If you have the need, to measure the time when a message arrive at a different message queue then the ``replyDestination(JmsDestination)``
+If you have the need to measure the time when a message arrive at a message queue different from the ``replyDestination(JmsDestination)``,
 you can additional define a ``trackerDestination(JmsDestination)``.
-
 
 Message Matching
 ----------------
@@ -109,6 +108,8 @@ JMS checks are very basic for now.
 There is ``simpleCheck`` that accepts just ``javax.jms.Message => Boolean`` functions.
 
 There is also ``xpath`` check for ``javax.jms.TextMessage`` that carries XML content.
+
+And there is ``bodyString``, ``jsonPath``, ``substring`` checks for ``java.jms.TextMessage`` that carries JSON content and ``java.jms.BytesMessage`` that carries json content in UTF-8 encoding. And You may use ``checkIf`` for conditional checks.
 
 Additionally you can define your custom check that implements ``Check[javax.jms.Message]``
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,11 @@ class SimulationStructureSample extends Simulation {
   val httpProtocol = http
 
   //#headers
-  val headers_10 = Map("Content-Type" -> """application/x-www-form-urlencoded""")
+  val someExtraHeaders = Map("Origin" -> "http://mydomain.com")
+
+  http("request")
+    .get("/foo")
+    .headers(someExtraHeaders)
   //#headers
 
   //#scenario-definition
@@ -33,7 +37,6 @@ class SimulationStructureSample extends Simulation {
   // Here's an example of a POST request
   http("request_10")
     .post("/computers")
-    .headers(headers_10)
     .formParam("name", "Beautiful Computer")
     .formParam("introduced", "2012-05-30")
     .formParam("discontinued", "")
@@ -42,7 +45,8 @@ class SimulationStructureSample extends Simulation {
 
   //#setUp
   setUp(
-    scn.inject(atOnceUsers(1)) // (1)
+    scn
+      .inject(atOnceUsers(1)) // (1)
       .protocols(httpProtocol) // (2)
   )
   //#setUp

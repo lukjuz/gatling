@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package io.gatling.core.feeder
 
+import scala.collection.AbstractIterator
 import scala.collection.immutable.{ AbstractMap, Map }
 
 private[feeder] object ArrayBasedMap {
@@ -23,24 +24,28 @@ private[feeder] object ArrayBasedMap {
     new ArrayBasedMap(keys, values, math.min(keys.length, values.length))
 }
 
-private[feeder] class ArrayBasedMap[K, +V](keys: Array[K], values: Array[V], override val size: Int) extends AbstractMap[K, V] with Map[K, V] with Serializable {
+private[feeder] class ArrayBasedMap[K, +V](keys: Array[K], values: Array[V], override val size: Int)
+    extends AbstractMap[K, V]
+    with Map[K, V]
+    with Serializable {
 
-  override def +[V1 >: V](kv: (K, V1)) = throw new UnsupportedOperationException
+  override def +[V1 >: V](kv: (K, V1)): Map[K, V1] = updated(kv._1, kv._2)
 
-  override def updated[V1 >: V](key: K, value: V1): Map[K, V1] = throw new UnsupportedOperationException
+  override def updated[V1 >: V](key: K, value: V1): Map[K, V1] = Map.empty[K, V1] ++ this + (key -> value)
 
   override def get(key: K): Option[V] = {
     var i = 0
-    while (i < size) {
+    var found: Option[V] = None
+    while (i < size && found.isEmpty) {
       if (keys(i) == key) {
-        return Some(values(i))
+        found = Some(values(i))
       }
       i += 1
     }
-    None
+    found
   }
 
-  override def iterator: Iterator[(K, V)] = new Iterator[(K, V)] {
+  override def iterator: Iterator[(K, V)] = new AbstractIterator[(K, V)] {
 
     private var i = 0
 
@@ -54,5 +59,5 @@ private[feeder] class ArrayBasedMap[K, +V](keys: Array[K], values: Array[V], ove
     }
   }
 
-  override def -(key: K) = throw new UnsupportedOperationException
+  override def -(key: K): Map[K, V] = Map.empty[K, V] ++ this - key
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
+import scala.concurrent.duration._
+
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
-
-import scala.concurrent.duration._
 
 class ComputerDatabaseSample extends Simulation {
 
@@ -30,13 +30,15 @@ class ComputerDatabaseSample extends Simulation {
     .userAgentHeader("""Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:31.0) Gecko/20100101 Firefox/31.0""")
 
   val computerDbScn = scenario("Computer Scenario")
-    .exec(http("getComputers")
-      .get("/computers")
-      .check(
-        status.is(200),
-        regex("""\d+ computers found"""),
-        css("#add", "href").saveAs("addComputer")
-      ))
+    .exec(
+      http("getComputers")
+        .get("/computers")
+        .check(
+          status.is(200),
+          regex("""\d+ computers found"""),
+          css("#add", "href").saveAs("addComputer")
+        )
+    )
 
     //#print-all-session-values
     .exec { session =>
@@ -51,21 +53,27 @@ class ComputerDatabaseSample extends Simulation {
       session
     }
     //#print-session-value
-
-    .exec(http("addNewComputer")
-      .get("${addComputer}")
-      .check(substring("Add a computer")))
-
+    .exec(
+      http("addNewComputer")
+        .get("${addComputer}")
+        .check(substring("Add a computer"))
+    )
     .exec(_.set("homeComputer", s"homeComputer_${java.util.concurrent.ThreadLocalRandom.current.nextInt(Int.MaxValue)}"))
-    .exec(http("postComputers")
-      .post("/computers")
-      .formParam("name", "${homeComputer}")
-      .formParam("introduced", "2015-10-10")
-      .formParam("discontinued", "2017-10-10")
-      .formParam("company", "")
-      .check(substring("${homeComputer}")))
+    .exec(
+      http("postComputers")
+        .post("/computers")
+        .formParam("name", "${homeComputer}")
+        .formParam("introduced", "2015-10-10")
+        .formParam("discontinued", "2017-10-10")
+        .formParam("company", "")
+        .check(substring("${homeComputer}"))
+    )
 
-  setUp(computerDbScn.inject(
-    constantUsersPerSec(2) during (1 minutes)
-  ).protocols(httpProtocol))
+  setUp(
+    computerDbScn
+      .inject(
+        constantUsersPerSec(2) during (1 minutes)
+      )
+      .protocols(httpProtocol)
+  )
 }

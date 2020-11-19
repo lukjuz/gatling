@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 
 import scala.concurrent.duration._
+
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
 
@@ -33,12 +34,16 @@ class WsSample {
   //#subprotocol
 
   //#onConnected
-  exec(ws("Connect WS").connect("/room/chat?username=steph")
-    .onConnected(
-      exec(ws("Perform auth")
-        .sendText("Some auth token"))
-        .pause(1)
-    ))
+  exec(
+    ws("Connect WS")
+      .connect("/room/chat?username=steph")
+      .onConnected(
+        exec(
+          ws("Perform auth")
+            .sendText("Some auth token")
+        ).pause(1)
+      )
+  )
   //#onConnected
 
   //#close
@@ -46,12 +51,15 @@ class WsSample {
   //#close
 
   //#sendText
-  exec(ws("Message")
-    .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}"""))
+  exec(
+    ws("Message")
+      .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}""")
+  )
   //#sendText
 
   //#create-single-check
-  val myCheck = ws.checkTextMessage("checkName")
+  val myCheck = ws
+    .checkTextMessage("checkName")
     .check(regex("hello (.*)").saveAs("name"))
   //#create-single-check
 
@@ -62,6 +70,12 @@ class WsSample {
       jsonPath("$.message").is("OK")
     )
   //#create-multiple-checks
+
+  //#silent-check
+  ws.checkTextMessage("checkName")
+    .check(regex("hello (.*)").saveAs("name"))
+    .silent
+  //#silent-check
 
   //#matching
   ws.checkTextMessage("checkName")
@@ -85,8 +99,11 @@ class WsSample {
   // 1st message will be validated against myCheck1
   // 2nd message will be validated against myCheck2
   // whole sequence must complete withing 30 seconds
-  exec(ws("Send").sendText("hello")
-    .await(30 seconds)(myCheck1, myCheck2))
+  exec(
+    ws("Send")
+      .sendText("hello")
+      .await(30 seconds)(myCheck1, myCheck2)
+  )
   //#check-single-sequence
 
   //#check-multiple-sequence
@@ -95,18 +112,24 @@ class WsSample {
   // 2nd message will be validated against myCheck2
   // both sequences must complete withing 15 seconds
   // 2nd sequence will start after 1st one completes
-  exec(ws("Send").sendText("hello")
-    .await(15 seconds)(myCheck1)
-    .await(15 seconds)(myCheck2))
+  exec(
+    ws("Send")
+      .sendText("hello")
+      .await(15 seconds)(myCheck1)
+      .await(15 seconds)(myCheck2)
+  )
   //#check-multiple-sequence
 
   //#check-matching
-  exec(ws("Send").sendText("hello")
-    .await(1 second)(
-      ws.checkTextMessage("checkName")
-        .matching(jsonPath("$.uuid").is("${correlation}"))
-        .check(jsonPath("$.code").ofType[Int].is(1))
-    ))
+  exec(
+    ws("Send")
+      .sendText("hello")
+      .await(1 second)(
+        ws.checkTextMessage("checkName")
+          .matching(jsonPath("$.uuid").is("${correlation}"))
+          .check(jsonPath("$.code").ofType[Int].is(1))
+      )
+  )
   //#check-matching
 
   //#chatroom-example
@@ -128,11 +151,13 @@ class WsSample {
     .exec(ws("Connect WS").connect("/room/chat?username=${id}"))
     .pause(1)
     .repeat(2, "i") {
-      exec(ws("Say Hello WS")
-        .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}""")
-        .await(30 seconds)(
-          ws.checkTextMessage("checkName").check(regex(".*I'm still alive.*"))
-        )).pause(1)
+      exec(
+        ws("Say Hello WS")
+          .sendText("""{"text": "Hello, I'm ${id} and this is message ${i}!"}""")
+          .await(30 seconds)(
+            ws.checkTextMessage("checkName").check(regex(".*I'm still alive.*"))
+          )
+      ).pause(1)
     }
     .exec(ws("Close WS").close)
   //#chatroom-example

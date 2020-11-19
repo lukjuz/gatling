@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,15 +17,14 @@
 package io.gatling.recorder.ui.swing.component
 
 import java.awt.Color
+import javax.swing.{ JMenuItem, JPopupMenu }
+import javax.swing.table.DefaultTableModel
 
 import scala.swing.{ Component, Dimension, ScrollPane, Table }
 import scala.swing.event.{ MouseButtonEvent, MouseEvent }
 import scala.util.{ Failure, Try }
 
 import io.gatling.commons.util.Throwables._
-
-import javax.swing.{ JMenuItem, JPopupMenu }
-import javax.swing.table.DefaultTableModel
 
 private[swing] class FilterTable(headerTitle: String) extends ScrollPane {
 
@@ -58,7 +57,9 @@ private[swing] class FilterTable(headerTitle: String) extends ScrollPane {
 
   def verify: List[String] =
     getRegexs
-      .map { str => (str, Try(str.r)) }
+      .map { str =>
+        (str, Try(str.r))
+      }
       .collect {
         case (str, fail: Failure[_]) => s"$str is not a valid regular expression: ${fail.exception.rootMessage}"
       }

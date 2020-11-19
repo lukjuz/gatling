@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,16 @@
 
 package io.gatling.http.check.ws
 
-import java.util.{ Map => JMap }
-
 import io.gatling.commons.validation.Validation
 import io.gatling.core.check.{ Check, CheckResult }
 import io.gatling.core.session.Session
 
 sealed trait WsCheck
-case class WsTextCheck(wrapped: Check[String]) extends WsCheck with Check[String] {
-  override def check(message: String, session: Session)(implicit cache: JMap[Any, Any]): Validation[CheckResult] =
-    wrapped.check(message, session)
+final class WsTextCheck(wrapped: Check[String]) extends WsCheck with Check[String] {
+  override def check(message: String, session: Session, preparedCache: Check.PreparedCache): Validation[CheckResult] =
+    wrapped.check(message, session, preparedCache)
 }
-case class WsBinaryCheck(wrapped: Check[Array[Byte]]) extends WsCheck with Check[Array[Byte]] {
-  override def check(message: Array[Byte], session: Session)(implicit cache: JMap[Any, Any]): Validation[CheckResult] =
-    wrapped.check(message, session)
+final class WsBinaryCheck(wrapped: Check[Array[Byte]]) extends WsCheck with Check[Array[Byte]] {
+  override def check(message: Array[Byte], session: Session, preparedCache: Check.PreparedCache): Validation[CheckResult] =
+    wrapped.check(message, session, preparedCache)
 }

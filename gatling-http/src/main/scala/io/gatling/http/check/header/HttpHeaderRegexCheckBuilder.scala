@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,10 @@
 package io.gatling.http.check.header
 
 import io.gatling.core.check._
-import io.gatling.core.check.extractor.Extractor
-import io.gatling.core.check.extractor.regex.{ GroupExtractor, Patterns }
-import io.gatling.core.session.{ Expression, Session }
-import io.gatling.http.check.HttpCheck
-import io.gatling.http.check.HttpCheckBuilders._
+import io.gatling.core.check.regex.{ GroupExtractor, Patterns }
+import io.gatling.core.session.Expression
+import io.gatling.http.check.{ HttpCheck, HttpCheckMaterializer }
+import io.gatling.http.check.HttpCheckScope.Header
 import io.gatling.http.response.Response
 
 trait HttpHeaderRegexCheckType
@@ -29,43 +28,42 @@ trait HttpHeaderRegexCheckType
 trait HttpHeaderRegexOfType {
   self: HttpHeaderRegexCheckBuilder[String] =>
 
-  def ofType[X: GroupExtractor] = new HttpHeaderRegexCheckBuilder[X](headerName, pattern, patterns)
+  def ofType[X: GroupExtractor]: HttpHeaderRegexCheckBuilder[X] = new HttpHeaderRegexCheckBuilder[X](headerName, pattern, patterns)
 }
 
 object HttpHeaderRegexCheckBuilder {
 
-  def headerRegex(headerName: Expression[String], pattern: Expression[String], patterns: Patterns) =
+  def headerRegex(
+      headerName: Expression[String],
+      pattern: Expression[String],
+      patterns: Patterns
+  ): HttpHeaderRegexCheckBuilder[String] with HttpHeaderRegexOfType =
     new HttpHeaderRegexCheckBuilder[String](headerName, pattern, patterns) with HttpHeaderRegexOfType
 }
 
 class HttpHeaderRegexCheckBuilder[X: GroupExtractor](
     private[header] val headerName: Expression[String],
-    private[header] val pattern:    Expression[String],
-    private[header] val patterns:   Patterns
-)
-  extends DefaultMultipleFindCheckBuilder[HttpHeaderRegexCheckType, Response, X](displayActualValue = true) {
-
-  import HttpHeaderRegexExtractorFactory._
+    private[header] val pattern: Expression[String],
+    private[header] val patterns: Patterns
+) extends DefaultMultipleFindCheckBuilder[HttpHeaderRegexCheckType, Response, X](displayActualValue = true) {
 
   private def withHeaderAndPattern[T](f: (String, String) => T): Expression[T] =
-    (session: Session) => for {
-      headerName <- headerName(session)
-      pattern <- pattern(session)
-    } yield f(headerName, pattern)
+    session =>
+      for {
+        headerName <- headerName(session)
+        pattern <- pattern(session)
+      } yield f(headerName, pattern)
 
-  override def findExtractor(occurrence: Int): Expression[Extractor[Response, X]] =
-    withHeaderAndPattern(newHeaderRegexSingleExtractor(_, _, occurrence, patterns))
+  override protected def findExtractor(occurrence: Int): Expression[Extractor[Response, X]] =
+    withHeaderAndPattern(HttpHeaderRegexExtractors.find(_, _, occurrence, patterns))
 
-  override def findAllExtractor: Expression[Extractor[Response, Seq[X]]] =
-    withHeaderAndPattern(newHeaderRegexMultipleExtractor(_, _, patterns))
+  override protected def findAllExtractor: Expression[Extractor[Response, Seq[X]]] = withHeaderAndPattern(HttpHeaderRegexExtractors.findAll(_, _, patterns))
 
-  override def countExtractor: Expression[Extractor[Response, Int]] =
-    withHeaderAndPattern(newHeaderRegexCountExtractor(_, _, patterns))
+  override protected def countExtractor: Expression[Extractor[Response, Int]] = withHeaderAndPattern(HttpHeaderRegexExtractors.count(_, _, patterns))
 }
 
-object HttpHeaderRegexCheckMaterializer extends CheckMaterializer[HttpHeaderRegexCheckType, HttpCheck, Response, Response] {
+object HttpHeaderRegexCheckMaterializer {
 
-  override val specializer: Specializer[HttpCheck, Response] = HeaderSpecializer
-
-  override val preparer: Preparer[Response, Response] = PassThroughResponsePreparer
+  val Instance: CheckMaterializer[HttpHeaderRegexCheckType, HttpCheck, Response, Response] =
+    new HttpCheckMaterializer[HttpHeaderRegexCheckType, Response](Header, identityPreparer)
 }

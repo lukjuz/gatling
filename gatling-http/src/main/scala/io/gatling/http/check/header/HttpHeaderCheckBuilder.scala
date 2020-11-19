@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,21 +18,21 @@ package io.gatling.http.check.header
 
 import io.gatling.core.check._
 import io.gatling.core.session.{ Expression, RichExpression }
-import io.gatling.http.check.HttpCheck
-import io.gatling.http.check.HttpCheckBuilders._
+import io.gatling.http.check.{ HttpCheck, HttpCheckMaterializer }
+import io.gatling.http.check.HttpCheckScope.Header
 import io.gatling.http.response.Response
 
 trait HttpHeaderCheckType
 
-class HttpHeaderCheckBuilder(headerName: Expression[String]) extends DefaultMultipleFindCheckBuilder[HttpHeaderCheckType, Response, String](displayActualValue = true) {
-  override def findExtractor(occurrence: Int): Expression[SingleHttpHeaderExtractor] = headerName.map(new SingleHttpHeaderExtractor(_, occurrence))
-  override def findAllExtractor: Expression[MultipleHttpHeaderExtractor] = headerName.map(new MultipleHttpHeaderExtractor(_))
-  override def countExtractor: Expression[CountHttpHeaderExtractor] = headerName.map(new CountHttpHeaderExtractor(_))
+class HttpHeaderCheckBuilder(headerName: Expression[CharSequence])
+    extends DefaultMultipleFindCheckBuilder[HttpHeaderCheckType, Response, String](displayActualValue = true) {
+  override protected def findExtractor(occurrence: Int): Expression[Extractor[Response, String]] = headerName.map(HttpHeaderExtractors.find(_, occurrence))
+  override protected def findAllExtractor: Expression[Extractor[Response, Seq[String]]] = headerName.map(HttpHeaderExtractors.findAll)
+  override protected def countExtractor: Expression[Extractor[Response, Int]] = headerName.map(HttpHeaderExtractors.count)
 }
 
-object HttpHeaderCheckMaterializer extends CheckMaterializer[HttpHeaderCheckType, HttpCheck, Response, Response] {
+object HttpHeaderCheckMaterializer {
 
-  override val specializer: Specializer[HttpCheck, Response] = HeaderSpecializer
-
-  override val preparer: Preparer[Response, Response] = PassThroughResponsePreparer
+  val Instance: CheckMaterializer[HttpHeaderCheckType, HttpCheck, Response, Response] =
+    new HttpCheckMaterializer[HttpHeaderCheckType, Response](Header, identityPreparer)
 }

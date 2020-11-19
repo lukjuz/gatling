@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,8 @@ trait Exclude[Scope, X]
 
 object Exclude {
   implicit def NOT_FOR_USER_CODE[X, A]: Exclude[X, A] = new Exclude[X, A] {}
+  @SuppressWarnings(Array("org.wartremover.warts.PublicInference"))
   def list[X] = new {
-    def apply[A] = NOT_FOR_USER_CODE[X, A]
+    def apply[A]: Exclude[X, A] = NOT_FOR_USER_CODE[X, A]
   }
 }

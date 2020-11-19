@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import io.gatling.commons.validation._
+import io.gatling.commons.validation.Validation
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
 
@@ -70,7 +70,7 @@ class CheckSample {
 
     //#xpath
     xpath("//input[@id='text1']/@value")
-    xpath("//foo:input[@id='text1']/@value", List("foo" -> "http://foo.com"))
+    xpath("//foo:input[@id='text1']/@value", Map("foo" -> "http://foo.com"))
     //#xpath
 
     //#jsonPath
@@ -97,6 +97,19 @@ class CheckSample {
     jsonPath("$..foo").ofType[Int] // will match 1
     //#jsonPath-Int
 
+    //#jmesPath
+    jmesPath("foo.bar[2].baz")
+    //#jmesPath
+
+    //#jmesPath-ofType
+    jmesPath(expression).ofType[T]
+    //#jmesPath-ofType
+
+    //#jmesPath-Int
+
+    jmesPath("foo").ofType[Int] // will match 1
+    //#jmesPath-Int
+
     //#css
     css("article.more a", "href")
     //#css
@@ -106,14 +119,13 @@ class CheckSample {
     //#css-ofType
 
     jsonPath("$..foo.bar[2].baz").
-      //#transform
-      transform(string => string + "foo")
-
+    //#transform
+    transform(string => string + "foo")
     //#transform
 
     jsonPath("$..foo.bar[2].baz").
-      //#transformOption
-      transformOption(extract => extract.orElse(Some("default")).success)
+    //#transformOption
+    transformOption(extract => extract.orElse(Some("default")))
     //#transformOption
 
     //#is
@@ -156,8 +168,7 @@ class CheckSample {
     //#regex-count-is
 
     //#regex-findAll-is
-    regex("""https://(.*)/.*""")
-      .findAll
+    regex("""https://(.*)/.*""").findAll
       .is(List("www.google.com", "www.mysecuredsite.com"))
     //#regex-findAll-is
 

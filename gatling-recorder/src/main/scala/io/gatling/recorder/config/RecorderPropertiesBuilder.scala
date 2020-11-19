@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.gatling.recorder.config
 
-import java.util.{ List => JList }
+import java.{ util => ju }
 
 import scala.collection.mutable
 
@@ -81,12 +81,12 @@ class RecorderPropertiesBuilder {
     this
   }
 
-  def whitelist(patterns: JList[String]): RecorderPropertiesBuilder = {
+  def whitelist(patterns: ju.List[String]): RecorderPropertiesBuilder = {
     props += filters.WhitelistPatterns -> patterns
     this
   }
 
-  def blacklist(patterns: JList[String]): RecorderPropertiesBuilder = {
+  def blacklist(patterns: ju.List[String]): RecorderPropertiesBuilder = {
     props += filters.BlacklistPatterns -> patterns
     this
   }
@@ -118,6 +118,11 @@ class RecorderPropertiesBuilder {
 
   def useSimulationAsPrefix(status: Boolean): RecorderPropertiesBuilder = {
     props += http.UseSimulationAsPrefix -> status
+    this
+  }
+
+  def useMethodAndUriAsPostfix(status: Boolean): RecorderPropertiesBuilder = {
+    props += http.UseMethodAndUriAsPostfix -> status
     this
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,12 @@ package io.gatling.http.fetch
 import scala.annotation.{ switch, tailrec }
 import scala.util.matching.Regex
 
-import io.gatling.http.client.ahc.uri.Uri
+import io.gatling.http.client.uri.Uri
 import io.gatling.http.util.HttpHelper
 
 import com.typesafe.scalalogging.StrictLogging
 
-object CssParser extends StrictLogging {
+private[fetch] object CssParser extends StrictLogging {
 
   private val InlineStyleImageUrls = """url\((.*)\)""".r
   private val StyleImportsUrls = """@import url\((.*)\)""".r
@@ -38,7 +38,7 @@ object CssParser extends StrictLogging {
   private def extractUrls(string: CharSequence, regex: Regex): Iterator[String] =
     regex.findAllIn(string).matchData.flatMap { m =>
       val raw = m.group(1)
-      extractUrl(raw, 0, raw.length)
+      extractUrl(raw, 0, raw.length).toList
     }
 
   private val SingleQuoteEscapeChar = Some('\'')
@@ -89,20 +89,22 @@ object CssParser extends StrictLogging {
         else
           (string.charAt(cur - 1): @switch) match {
             case ' ' | '\r' | '\n' => trimRight(cur - 1, leftLimit)
-            case '\'' => protectChar match {
-              case `SingleQuoteEscapeChar` =>
-                trimRight(cur - 1, leftLimit)
-              case _ =>
-                broken = true
-                cur
-            }
-            case '"' => protectChar match {
-              case `DoubleQuoteEscapeChar` =>
-                trimRight(cur - 1, leftLimit)
-              case _ =>
-                broken = true
-                cur
-            }
+            case '\'' =>
+              protectChar match {
+                case `SingleQuoteEscapeChar` =>
+                  trimRight(cur - 1, leftLimit)
+                case _ =>
+                  broken = true
+                  cur
+              }
+            case '"' =>
+              protectChar match {
+                case `DoubleQuoteEscapeChar` =>
+                  trimRight(cur - 1, leftLimit)
+                case _ =>
+                  broken = true
+                  cur
+              }
             case _ => cur
           }
 
@@ -152,12 +154,12 @@ object CssParser extends StrictLogging {
       (cssContent.charAt(i): @switch) match {
         case '/' =>
           if (i < cssContent.length - 1 &&
-            cssContent.charAt(i + 1) == '*') {
+              cssContent.charAt(i + 1) == '*') {
             withinComment = true
             i += 1
 
           } else if (i > 0 &&
-            cssContent.charAt(i - 1) == '*') {
+                     cssContent.charAt(i - 1) == '*') {
             withinComment = false
           }
 

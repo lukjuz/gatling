@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ package io.gatling.recorder.http.flows
 import scala.util.{ Failure, Success }
 
 import io.gatling.commons.util.Clock
-import io.gatling.recorder.http.Netty._
 import io.gatling.recorder.http.{ OutgoingProxy, TrafficLogger }
+import io.gatling.recorder.http.Netty._
 import io.gatling.recorder.http.flows.MitmActorFSM.{ WaitingForClientChannelConnect, WaitingForClientChannelConnectData }
 import io.gatling.recorder.http.flows.MitmMessage.{ ClientChannelActive, ClientChannelException }
 import io.gatling.recorder.http.ssl.SslServerContext
@@ -32,14 +32,14 @@ import io.netty.handler.codec.http.{ FullHttpRequest, HttpClientCodec }
 
 object MitmActor {
   def apply(
-    outgoingProxy:          Option[OutgoingProxy],
-    clientBootstrap:        Bootstrap,
-    sslServerContext:       SslServerContext,
-    trafficLogger:          TrafficLogger,
-    httpClientCodecFactory: () => HttpClientCodec,
-    channel:                Channel,
-    https:                  Boolean,
-    clock:                  Clock
+      outgoingProxy: Option[OutgoingProxy],
+      clientBootstrap: Bootstrap,
+      sslServerContext: SslServerContext,
+      trafficLogger: TrafficLogger,
+      httpClientCodecFactory: () => HttpClientCodec,
+      channel: Channel,
+      https: Boolean,
+      clock: Clock
   ): MitmActor =
     if (https) {
       outgoingProxy match {

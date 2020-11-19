@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,18 +44,17 @@ object OpenInjectionProfileSpec {
     var count = 0
 
     val workload = new OpenWorkload(
-      scenario = Scenario("foo", null, identity, _ => (), null, null),
+      scenario = new Scenario("foo", null, identity, _ => (), null, null, Nil),
       stream = UserStream(profile.steps),
       userIdGen = new AtomicLong,
       startTime = System.currentTimeMillis(),
-      system = null,
+      eventLoopGroup = null,
       statsEngine = null,
       clock = new FakeClock
     ) {
 
-      override protected def injectUser(delay: FiniteDuration): Unit = {
+      override protected def injectUser(delay: FiniteDuration): Unit =
         count += 1
-      }
     }
 
     while (!workload.isAllUsersScheduled) {
@@ -66,14 +65,14 @@ object OpenInjectionProfileSpec {
   }
 }
 
-class OpenInjectionProfileSpec extends BaseSpec with MetaOpenInjectionSupport {
+class OpenInjectionProfileSpec extends BaseSpec {
 
   import OpenInjectionProfileSpec._
 
   "Inserting a pause between steps" should "produce the right number of users" in {
 
     val steps = Seq(AtOnceOpenInjection(1), NothingForOpenInjection(2 seconds), AtOnceOpenInjection(1))
-    val profile = OpenInjectionProfile(steps)
+    val profile = new OpenInjectionProfile(steps)
     profile.totalUserCount shouldBe Some(2)
   }
 
@@ -84,7 +83,7 @@ class OpenInjectionProfileSpec extends BaseSpec with MetaOpenInjectionSupport {
 
     forAll((validUsers, "users"), (validDurationSeconds, "durationSeconds")) { (users, durationSeconds) =>
       val steps = Seq(RampOpenInjection(users, durationSeconds second))
-      val profile = OpenInjectionProfile(steps)
+      val profile = new OpenInjectionProfile(steps)
       val actualCount = drain(profile)
       profile.totalUserCount shouldBe Some(actualCount)
     }
@@ -97,7 +96,7 @@ class OpenInjectionProfileSpec extends BaseSpec with MetaOpenInjectionSupport {
 
     forAll((validRate, "rate"), (validDurationSeconds, "durationSeconds")) { (startRate, durationSeconds) =>
       val steps = Seq(ConstantRateOpenInjection(startRate, durationSeconds second))
-      val profile = OpenInjectionProfile(steps)
+      val profile = new OpenInjectionProfile(steps)
       val actualCount = drain(profile)
       profile.totalUserCount shouldBe Some(actualCount)
     }
@@ -111,7 +110,7 @@ class OpenInjectionProfileSpec extends BaseSpec with MetaOpenInjectionSupport {
 
     forAll((validStartRate, "startRate"), (validEndRate, "endRate"), (validDurationSeconds, "durationSeconds")) { (startRate, endRate, durationSeconds) =>
       val steps = Seq(RampRateOpenInjection(startRate, endRate, durationSeconds second))
-      val profile = OpenInjectionProfile(steps)
+      val profile = new OpenInjectionProfile(steps)
       val actualCount = drain(profile)
       profile.totalUserCount shouldBe Some(actualCount)
     }
@@ -123,7 +122,7 @@ class OpenInjectionProfileSpec extends BaseSpec with MetaOpenInjectionSupport {
 
     forAll((validUsers, "users")) { users =>
       val steps = Seq(AtOnceOpenInjection(users))
-      val profile = OpenInjectionProfile(steps)
+      val profile = new OpenInjectionProfile(steps)
       val actualCount = drain(profile)
       profile.totalUserCount shouldBe Some(actualCount)
     }
@@ -136,62 +135,66 @@ class OpenInjectionProfileSpec extends BaseSpec with MetaOpenInjectionSupport {
 
     forAll((validUsers, "users"), (validDurationSeconds, "durationSeconds")) { (users, durationSeconds) =>
       val steps = Seq(HeavisideOpenInjection(users, durationSeconds second))
-      val profile = OpenInjectionProfile(steps)
+      val profile = new OpenInjectionProfile(steps)
       val actualCount = drain(profile)
       profile.totalUserCount shouldBe Some(actualCount)
     }
   }
 
-  "getInjectionSteps" should "produce the expected injection profile with ramps and starting users" in {
-    val steps = IncreasingUsersPerSecProfile(
+  "composite.injectionSteps" should "produce the expected injection profile with starting users and with ramps" in {
+    val steps = IncreasingUsersPerSecCompositeStep(
       usersPerSec = 10,
       nbOfSteps = 5,
       duration = 10 seconds,
       startingUsers = 5,
       rampDuration = 20 seconds
-    ).getInjectionSteps.toSeq
+    ).composite.injectionSteps
 
-    val expected = Seq(
-      ConstantRateOpenInjection(5, 10 seconds), RampRateOpenInjection(5, 15, 20 seconds),
-      ConstantRateOpenInjection(15, 10 seconds), RampRateOpenInjection(15, 25, 20 seconds),
-      ConstantRateOpenInjection(25, 10 seconds), RampRateOpenInjection(25, 35, 20 seconds),
-      ConstantRateOpenInjection(35, 10 seconds), RampRateOpenInjection(35, 45, 20 seconds),
+    val expected = List(
+      ConstantRateOpenInjection(5, 10 seconds),
+      RampRateOpenInjection(5, 15, 20 seconds),
+      ConstantRateOpenInjection(15, 10 seconds),
+      RampRateOpenInjection(15, 25, 20 seconds),
+      ConstantRateOpenInjection(25, 10 seconds),
+      RampRateOpenInjection(25, 35, 20 seconds),
+      ConstantRateOpenInjection(35, 10 seconds),
+      RampRateOpenInjection(35, 45, 20 seconds),
       ConstantRateOpenInjection(45, 10 seconds)
     )
 
     steps.shouldBe(expected)
   }
 
-  it should "produce the expected injection profile without starting users and ramp" in {
-    val steps = IncreasingUsersPerSecProfile(
+  it should "produce the expected injection profile without starting users and without ramps" in {
+    val steps = IncreasingUsersPerSecCompositeStep(
       usersPerSec = 10,
       nbOfSteps = 5,
       duration = 10 seconds,
       startingUsers = 0,
       rampDuration = Duration.Zero
-    ).getInjectionSteps.toSeq
+    ).composite.injectionSteps
 
-    val expected = Seq(
+    val expected = List(
+      ConstantRateOpenInjection(0, 10 seconds),
       ConstantRateOpenInjection(10, 10 seconds),
       ConstantRateOpenInjection(20, 10 seconds),
       ConstantRateOpenInjection(30, 10 seconds),
-      ConstantRateOpenInjection(40, 10 seconds),
-      ConstantRateOpenInjection(50, 10 seconds)
+      ConstantRateOpenInjection(40, 10 seconds)
     )
 
     steps.shouldBe(expected)
   }
 
-  it should "produce the expected injection profile with starting users and without ramp" in {
-    val steps = IncreasingUsersPerSecProfile(
+  it should "produce the expected injection profile with starting users and without ramps" in {
+    val steps = IncreasingUsersPerSecCompositeStep(
       usersPerSec = 10,
       nbOfSteps = 5,
       duration = 10 seconds,
       startingUsers = 5,
       rampDuration = Duration.Zero
-    ).getInjectionSteps.toSeq
+    ).composite.injectionSteps
 
-    val expected = Seq(
+    val expected = List(
       ConstantRateOpenInjection(5, 10 seconds),
       ConstantRateOpenInjection(15, 10 seconds),
       ConstantRateOpenInjection(25, 10 seconds),
@@ -203,22 +206,44 @@ class OpenInjectionProfileSpec extends BaseSpec with MetaOpenInjectionSupport {
   }
 
   it should "produce the expected injection profile without starting users and with ramps" in {
-    val steps = IncreasingUsersPerSecProfile(
+    val steps = IncreasingUsersPerSecCompositeStep(
       usersPerSec = 10,
       nbOfSteps = 5,
       duration = 10 seconds,
       startingUsers = 0,
       rampDuration = 80 seconds
-    ).getInjectionSteps.toSeq
+    ).composite.injectionSteps
 
-    val expected = Seq(
-      ConstantRateOpenInjection(10, 10 seconds), RampRateOpenInjection(10, 20, 80 seconds),
-      ConstantRateOpenInjection(20, 10 seconds), RampRateOpenInjection(20, 30, 80 seconds),
-      ConstantRateOpenInjection(30, 10 seconds), RampRateOpenInjection(30, 40, 80 seconds),
-      ConstantRateOpenInjection(40, 10 seconds), RampRateOpenInjection(40, 50, 80 seconds),
+    val expected = List(
+      RampRateOpenInjection(0, 10, 80 seconds),
+      ConstantRateOpenInjection(10, 10 seconds),
+      RampRateOpenInjection(10, 20, 80 seconds),
+      ConstantRateOpenInjection(20, 10 seconds),
+      RampRateOpenInjection(20, 30, 80 seconds),
+      ConstantRateOpenInjection(30, 10 seconds),
+      RampRateOpenInjection(30, 40, 80 seconds),
+      ConstantRateOpenInjection(40, 10 seconds),
+      RampRateOpenInjection(40, 50, 80 seconds),
       ConstantRateOpenInjection(50, 10 seconds)
     )
 
     steps.shouldBe(expected)
+  }
+
+  it should "chain components in correct order" in {
+    val composite = CompositeOpenInjectionStep(
+      List(
+        ConstantRateOpenInjection(2, 1 seconds),
+        ConstantRateOpenInjection(4, 1 seconds)
+      )
+    )
+    composite.chain(Iterator.empty).toList shouldBe Seq(
+      0 milliseconds,
+      500 milliseconds,
+      1000 milliseconds,
+      1250 milliseconds,
+      1500 milliseconds,
+      1750 milliseconds
+    )
   }
 }

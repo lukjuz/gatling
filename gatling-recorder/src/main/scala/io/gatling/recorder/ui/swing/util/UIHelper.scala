@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,20 @@
 
 package io.gatling.recorder.ui.swing.util
 
-import scala.swing._
-
 import javax.swing.JComponent
+import javax.swing.border.TitledBorder
+
+import scala.swing._
 
 private[swing] object UIHelper {
 
-  def titledBorder(title: String) = Swing.TitledBorder(null, title)
+  def titledBorder(title: String): TitledBorder = Swing.TitledBorder(null, title)
 
   class LeftAlignedFlowPanel extends FlowPanel(FlowPanel.Alignment.Left)()
   class CenterAlignedFlowPanel extends FlowPanel(FlowPanel.Alignment.Center)()
   class RightAlignedFlowPanel extends FlowPanel(FlowPanel.Alignment.Right)()
 
-  implicit def wrapComponent(component: JComponent) = Component.wrap(component)
+  implicit def wrapComponent(component: JComponent): Component = Component.wrap(component)
 
   implicit class RichListView[T](val listView: ListView[T]) extends AnyVal {
 

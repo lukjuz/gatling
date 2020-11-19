@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,33 +17,29 @@
 package io.gatling.jms.check
 
 import java.util.{ HashMap => JHashMap }
-
 import javax.jms._
 
 import io.gatling.BaseSpec
 import io.gatling.commons.validation._
-import io.gatling.core.session.Session
+import io.gatling.core.session.SessionSpec.EmptySession
 import io.gatling.jms._
 
 class JmsSimpleCheckSpec extends BaseSpec with JmsDsl with MockMessage {
 
-  private implicit def cache = new JHashMap[Any, Any]
-
-  val session = Session("mockSession", 0, System.currentTimeMillis())
-  val check = simpleCheck {
+  private val check = simpleCheck {
     case tm: TextMessage => tm.getText == "OK"
     case _               => false
   }
 
   "simple check" should "return success if condition is true" in {
-    check.check(textMessage("OK"), session) shouldBe a[Success[_]]
+    check.check(textMessage("OK"), EmptySession, new JHashMap[Any, Any]) shouldBe a[Success[_]]
   }
 
   it should "return failure if condition is false" in {
-    check.check(textMessage("KO"), session) shouldBe a[Failure]
+    check.check(textMessage("KO"), EmptySession, new JHashMap[Any, Any]) shouldBe a[Failure]
   }
 
   it should "return failure if message is not TextMessage" in {
-    check.check(message, session) shouldBe a[Failure]
+    check.check(message, EmptySession, new JHashMap[Any, Any]) shouldBe a[Failure]
   }
 }

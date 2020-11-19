@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,6 @@
 
 package io.gatling.graphite.types
 
-import io.gatling.core.stats.message.{ End, Start }
-import io.gatling.core.stats.writer.UserMessage
-
 private[graphite] class UserBreakdownBuffer(val totalUserEstimate: Long) {
 
   private var previousActive = 0L
@@ -30,16 +27,15 @@ private[graphite] class UserBreakdownBuffer(val totalUserEstimate: Long) {
   private var end = 0
   private var waiting = totalUserEstimate
 
-  def add(userMessage: UserMessage): Unit = userMessage.event match {
-    case Start =>
+  def record(isStart: Boolean): Unit =
+    if (isStart) {
       start += 1
       thisStart += 1
       waiting -= 1
-
-    case End =>
+    } else {
       end += 1
       thisEnd += 1
-  }
+    }
 
   def breakDown: UserBreakdown = {
 
@@ -52,4 +48,4 @@ private[graphite] class UserBreakdownBuffer(val totalUserEstimate: Long) {
   }
 }
 
-private[graphite] case class UserBreakdown(active: Long, waiting: Long, done: Long)
+private[graphite] final case class UserBreakdown(active: Long, waiting: Long, done: Long)

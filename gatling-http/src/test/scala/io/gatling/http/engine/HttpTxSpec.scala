@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,42 +23,39 @@ import io.gatling.core.action.Action
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.http.cache.HttpCaches
 import io.gatling.http.client.Request
-import io.gatling.http.client.ahc.uri.Uri
+import io.gatling.http.client.uri.Uri
 import io.gatling.http.engine.tx.{ HttpTx, HttpTxExecutor, ResourceTx }
 import io.gatling.http.protocol.{ HttpComponents, HttpProtocol }
 import io.gatling.http.request.{ HttpRequest, HttpRequestConfig }
 
-import akka.actor.ActorSystem
 import com.softwaremill.quicklens._
 import org.mockito.Mockito._
 
 class HttpTxSpec extends BaseSpec {
 
-  implicit val configuration = GatlingConfiguration.loadForTest()
+  private implicit val configuration: GatlingConfiguration = GatlingConfiguration.loadForTest()
 
   trait Context {
-    val coreComponents = mock[CoreComponents]
-    val clock = new DefaultClock
-    when(coreComponents.configuration).thenReturn(configuration)
-    when(coreComponents.actorSystem).thenReturn(mock[ActorSystem])
-    val httpEngine = mock[HttpEngine]
+    val coreComponents = new CoreComponents(null, null, null, null, null, new DefaultClock, null, configuration)
     val httpProtocol = HttpProtocol(configuration)
-    val httpComponents = HttpComponents(coreComponents, httpProtocol, httpEngine, new HttpCaches(coreComponents), mock[HttpTxExecutor])
+    val httpComponents = new HttpComponents(httpProtocol, mock[HttpEngine], new HttpCaches(coreComponents), mock[HttpTxExecutor])
 
     val configBase = HttpRequestConfig(
       checks = Nil,
       errorChecks = Nil,
       responseTransformer = None,
-      maxRedirects = 20,
       throttled = false,
       silent = None,
       followRedirect = false,
-      httpProtocol = httpProtocol,
-      explicitResources = Nil
+      digests = Map.empty,
+      storeBodyParts = false,
+      defaultCharset = configuration.core.charset,
+      explicitResources = Nil,
+      httpProtocol = httpProtocol
     )
   }
 
-  def tx(clientRequest: Request, requestConfig: HttpRequestConfig, root: Boolean) =
+  private def tx(clientRequest: Request, requestConfig: HttpRequestConfig, root: Boolean) =
     HttpTx(
       null,
       request = HttpRequest(
@@ -66,9 +63,9 @@ class HttpTxSpec extends BaseSpec {
         clientRequest = clientRequest,
         requestConfig = requestConfig
       ),
-      responseBuilderFactory = null,
       next = mock[Action],
-      resourceTx = if (root) None else Some(ResourceTx(null, null))
+      resourceTx = if (root) None else Some(ResourceTx(null, null)),
+      redirectCount = 0
     )
 
   "HttpTx" should "be silent when using default protocol and containing a request forced to silent" in new Context {

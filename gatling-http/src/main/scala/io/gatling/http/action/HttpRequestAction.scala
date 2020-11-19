@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import io.gatling.core.stats.StatsEngine
 import io.gatling.core.util.NameGen
 import io.gatling.http.engine.tx.{ HttpTx, HttpTxExecutor }
 import io.gatling.http.request.HttpRequestDef
-import io.gatling.http.response._
 
 /**
  * This is an action that sends HTTP requests
@@ -35,11 +34,9 @@ class HttpRequestAction(
     httpRequestDef: HttpRequestDef,
     httpTxExecutor: HttpTxExecutor,
     coreComponents: CoreComponents,
-    val next:       Action
-)
-  extends RequestAction with NameGen {
-
-  import httpRequestDef._
+    val next: Action
+) extends RequestAction
+    with NameGen {
 
   override def clock: Clock = coreComponents.clock
 
@@ -49,20 +46,14 @@ class HttpRequestAction(
 
   override def statsEngine: StatsEngine = coreComponents.statsEngine
 
-  private val responseBuilderFactory = ResponseBuilder.newResponseBuilderFactory(
-    requestConfig.checks,
-    requestConfig.httpProtocol.responsePart.inferHtmlResources,
-    clock,
-    coreComponents.configuration
-  )
-
   override def sendRequest(requestName: String, session: Session): Validation[Unit] =
     httpRequestDef.build(requestName, session).map { httpRequest =>
       val tx = HttpTx(
         session,
         httpRequest,
-        responseBuilderFactory,
-        next
+        next,
+        None,
+        0
       )
 
       httpTxExecutor.execute(tx)

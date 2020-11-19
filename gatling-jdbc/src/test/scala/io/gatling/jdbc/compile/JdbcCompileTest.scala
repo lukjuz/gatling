@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,11 +21,16 @@ import io.gatling.jdbc.Predef._
 
 class JdbcCompileTest extends Simulation {
 
-  val testData2 = jdbcFeeder("jdbc:postgresql:gatling", "gatling", "gatling", """
+  private val testData2 = jdbcFeeder(
+    "jdbc:postgresql:gatling",
+    "gatling",
+    "gatling",
+    """
 select login as "username", password
 from usr
 where id in (select usr_id from usr_role where role_id='ROLE_USER')
 and id not in (select usr_id from usr_role where role_id='ROLE_ADMIN')
-and (select count(*) from usr_account where usr_id=id) >=2""")
+and (select count(*) from usr_account where usr_id=id) >=2"""
+  )
 
 }

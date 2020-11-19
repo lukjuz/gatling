@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,46 +22,55 @@ import scala.collection.JavaConverters._
 
 import io.gatling.commons.validation._
 import io.gatling.core.session.Session
-import io.gatling.http.HeaderNames
-import io.gatling.http.client.ahc.uri.Uri
-import io.gatling.http.client.{ Request, RequestBuilder => AhcRequestBuilder }
+import io.gatling.http.client.{ Request, RequestBuilder }
+import io.gatling.http.client.uri.Uri
 import io.gatling.http.cookie.CookieSupport
 import io.gatling.http.protocol.HttpProtocol
 
+import io.netty.handler.codec.http.HttpHeaderNames
 import io.netty.handler.codec.http.HttpMethod._
 import io.netty.handler.codec.http.HttpResponseStatus
 import io.netty.handler.codec.http.HttpResponseStatus._
 
 object RedirectProcessor {
 
-  def redirectRequest(originalRequest: Request, session: Session, responseStatus: HttpResponseStatus, httpProtocol: HttpProtocol, redirectUri: Uri, defaultCharset: Charset): Validation[Request] = {
+  def redirectRequest(
+      originalRequest: Request,
+      session: Session,
+      responseStatus: HttpResponseStatus,
+      httpProtocol: HttpProtocol,
+      redirectUri: Uri,
+      defaultCharset: Charset
+  ): Validation[Request] = {
 
     val originalMethod = originalRequest.getMethod
 
-    val switchToGet = originalMethod != GET && (responseStatus == HttpResponseStatus.MOVED_PERMANENTLY || responseStatus == SEE_OTHER || (responseStatus == FOUND && !httpProtocol.responsePart.strict302Handling))
+    val switchToGet = originalMethod != GET && originalMethod != HEAD && originalMethod != OPTIONS && (responseStatus == HttpResponseStatus.MOVED_PERMANENTLY || responseStatus == SEE_OTHER || (responseStatus == FOUND && !httpProtocol.responsePart.strict302Handling))
     val keepBody = responseStatus == TEMPORARY_REDIRECT || responseStatus == PERMANENT_REDIRECT || (responseStatus == FOUND && httpProtocol.responsePart.strict302Handling)
 
     val newHeaders = originalRequest.getHeaders
-      .remove(HeaderNames.Host)
-      .remove(HeaderNames.ContentLength)
-      .remove(HeaderNames.Cookie)
-      .remove(HeaderNames.Authorization)
-      .remove(HeaderNames.Origin)
-      .set(HeaderNames.Referer, originalRequest.getUri.toString)
+      .remove(HttpHeaderNames.HOST)
+      .remove(HttpHeaderNames.CONTENT_LENGTH)
+      .remove(HttpHeaderNames.COOKIE)
+      .remove(HttpHeaderNames.ORIGIN)
 
-    if (!keepBody) {
-      newHeaders.remove(HeaderNames.ContentType)
+    if (originalRequest.getRealm != null) {
+      // remove Authorization header if there's a realm as it will be recomputed
+      newHeaders.remove(HttpHeaderNames.AUTHORIZATION)
     }
 
-    val requestBuilder = new AhcRequestBuilder(if (switchToGet) GET else originalMethod, redirectUri)
+    if (!keepBody) {
+      newHeaders.remove(HttpHeaderNames.CONTENT_TYPE)
+    }
+
+    val requestBuilder = new RequestBuilder(if (switchToGet) GET else originalMethod, redirectUri, originalRequest.getNameResolver)
       .setHeaders(newHeaders)
       .setHttp2Enabled(originalRequest.isHttp2Enabled)
-      .setLocalAddress(originalRequest.getLocalAddress)
-      .setNameResolver(originalRequest.getNameResolver)
+      .setLocalIpV4Address(originalRequest.getLocalIpV4Address)
+      .setLocalIpV6Address(originalRequest.getLocalIpV6Address)
       .setRealm(originalRequest.getRealm)
       .setRequestTimeout(originalRequest.getRequestTimeout)
       .setDefaultCharset(defaultCharset)
-      .setFixUrlEncoding(false)
 
     if (originalRequest.getUri.isSameBase(redirectUri)) {
       // we can only assume the virtual host is still valid if the baseUrl is the same
@@ -86,8 +95,8 @@ object RedirectProcessor {
     val newClientRequest = requestBuilder.build
 
     if (newClientRequest.getUri == originalRequest.getUri
-      && newClientRequest.getMethod == originalRequest.getMethod
-      && newClientRequest.getCookies.asScala.toSet == originalRequest.getCookies.asScala.toSet) {
+        && newClientRequest.getMethod == originalRequest.getMethod
+        && newClientRequest.getCookies.asScala.toSet == originalRequest.getCookies.asScala.toSet) {
       // invalid redirect
 
       "Invalid redirect to the same request".failure

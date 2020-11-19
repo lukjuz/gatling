@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import io.gatling.http.client.Param;
 import io.gatling.http.client.body.RequestBody;
 import io.gatling.http.client.body.RequestBodyBuilder;
 import io.gatling.http.client.body.WritableContent;
-import io.gatling.netty.util.ahc.StringBuilderPool;
-import io.gatling.netty.util.ahc.Utf8UrlEncoder;
+import io.gatling.netty.util.StringBuilderPool;
+import io.gatling.http.client.util.Utf8UrlEncoder;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
@@ -33,14 +33,18 @@ import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-public class FormUrlEncodedRequestBody extends RequestBody<List<Param>> {
+public final class FormUrlEncodedRequestBody extends RequestBody<List<Param>> {
+
+  private final Charset charset;
+  private static final StringBuilderPool SB_POOL = new StringBuilderPool();
 
   public FormUrlEncodedRequestBody(List<Param> content, String contentType, Charset charset) {
-    super(content, contentType, charset);
+    super(content, contentType);
+    this.charset = charset;
   }
 
   @Override
-  public WritableContent build(boolean zeroCopy, ByteBufAllocator alloc) {
+  public WritableContent build(ByteBufAllocator alloc) {
 
     StringBuilder sb = encode();
 
@@ -49,7 +53,7 @@ public class FormUrlEncodedRequestBody extends RequestBody<List<Param>> {
   }
 
   private StringBuilder encode() {
-    StringBuilder sb = StringBuilderPool.DEFAULT.get();
+    StringBuilder sb = SB_POOL.get();
 
     for (Param param : content) {
       encodeAndAppendFormParam(sb, param.getName(), param.getValue(), charset);
@@ -88,15 +92,15 @@ public class FormUrlEncodedRequestBody extends RequestBody<List<Param>> {
 
   @Override
   public byte[] getBytes() {
-    return encode().toString().getBytes();
+    return encode().toString().getBytes(charset);
   }
 
   @Override
   public String toString() {
     return "FormUrlEncodedRequestBody{" +
-      "content=" + content +
-      ", contentType=" + contentType +
+      "contentType='" + contentType + '\'' +
       ", charset=" + charset +
+      ", content=" + encode() +
       '}';
   }
 }

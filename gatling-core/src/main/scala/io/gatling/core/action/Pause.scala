@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,17 +16,13 @@
 
 package io.gatling.core.action
 
-import scala.concurrent.duration.DurationLong
+import java.util.concurrent.TimeUnit
 
 import io.gatling.commons.util.Clock
 import io.gatling.core.session.{ Expression, Session }
 import io.gatling.core.stats.StatsEngine
 
-import akka.actor.ActorSystem
-
-class Pause(pauseDuration: Expression[Long], actorSystem: ActorSystem, val statsEngine: StatsEngine, val clock: Clock, val name: String, val next: Action) extends ExitableAction {
-
-  import actorSystem._
+class Pause(pauseDuration: Expression[Long], val statsEngine: StatsEngine, val clock: Clock, val name: String, val next: Action) extends ExitableAction {
 
   /**
    * Generates a duration if required or use the one given and defer
@@ -36,31 +32,13 @@ class Pause(pauseDuration: Expression[Long], actorSystem: ActorSystem, val stats
    */
   override def execute(session: Session): Unit = recover(session) {
 
-    def schedule(durationInMillis: Long) = {
-      val drift = session.drift
+    def schedule(durationInMillis: Long): Unit = {
+      // can make pause
+      logger.debug(s"Pausing for ${durationInMillis}ms")
 
-      if (durationInMillis > drift) {
-        // can make pause
-        val durationMinusDrift = durationInMillis - drift
-        logger.debug(s"Pausing for ${durationInMillis}ms (real=${durationMinusDrift}ms)")
-
-        val pauseStart = clock.nowMillis
-
-        try {
-          scheduler.scheduleOnce(durationMinusDrift milliseconds) {
-            val newDrift = clock.nowMillis - pauseStart - durationMinusDrift
-            next ! session.setDrift(newDrift)
-          }
-        } catch {
-          case _: IllegalStateException => // engine was shutdown
-        }
-
-      } else {
-        // drift is too big
-        val remainingDrift = drift - durationInMillis
-        logger.debug(s"Can't pause (remaining drift=${remainingDrift}ms)")
-        dispatcher.execute(() => next ! session.setDrift(remainingDrift))
-      }
+      session.eventLoop.schedule((() => {
+        next ! session
+      }): Runnable, durationInMillis, TimeUnit.MILLISECONDS)
     }
 
     pauseDuration(session).map(schedule)

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,13 @@ private[stats] trait RequestPercentilesBuffers {
   def getResponseTimePercentilesBuffers(requestName: Option[String], group: Option[Group], status: Status): PercentilesBuffers =
     responseTimePercentilesBuffers.getOrElseUpdate(BufferKey(requestName, group, Some(status)), new PercentilesBuffers(buckets))
 
-  private def updateRequestPercentilesBuffers(requestName: Option[String], group: Option[Group], status: Status, requestStartBucket: Int, responseTime: Int): Unit = {
+  private def updateRequestPercentilesBuffers(
+      requestName: Option[String],
+      group: Option[Group],
+      status: Status,
+      requestStartBucket: Int,
+      responseTime: Int
+  ): Unit = {
     val responseTimePercentilesBuffers = getResponseTimePercentilesBuffers(requestName, group, status)
     responseTimePercentilesBuffers.update(requestStartBucket, responseTime)
   }

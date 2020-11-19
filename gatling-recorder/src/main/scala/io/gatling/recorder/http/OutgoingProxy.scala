@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,4 +18,4 @@ package io.gatling.recorder.http
 
 import io.gatling.commons.model.Credentials
 
-case class OutgoingProxy(host: String, port: Int, sslPort: Int, credentials: Option[Credentials])
+final case class OutgoingProxy(host: String, port: Int, sslPort: Int, credentials: Option[Credentials])

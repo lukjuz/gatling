@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,10 @@
 package io.gatling.http.client.proxy;
 
 import io.gatling.http.client.Request;
-import io.gatling.http.client.RequestBuilder;
 import io.gatling.http.client.test.TestServer;
 import io.gatling.http.client.test.HttpTest;
 import io.gatling.http.client.test.listener.TestListener;
-import io.gatling.http.client.ahc.uri.Uri;
+import io.gatling.http.client.uri.Uri;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
@@ -113,7 +112,7 @@ public class HttpProxyTest extends HttpTest {
           h.add("Test" + i, "Test" + i);
         }
 
-        Request request = new RequestBuilder(HttpMethod.GET, Uri.create(target.getHttpUrl()))
+        Request request = client.newRequestBuilder(HttpMethod.GET, Uri.create(target.getHttpUrl()))
           .setHeaders(h)
           .setProxyServer(new HttpProxyServer("localhost", proxy.getPort(), 0, null))
           .build();

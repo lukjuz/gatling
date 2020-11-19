@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,33 +17,62 @@
 package io.gatling.http.check.ws
 
 import io.gatling.core.check._
+import io.gatling.core.check.bytes.BodyBytesCheckType
+import io.gatling.core.check.jmespath.JmesPathCheckType
+import io.gatling.core.check.jsonpath.JsonPathCheckType
+import io.gatling.core.check.regex.RegexCheckType
+import io.gatling.core.check.string.BodyStringCheckType
+import io.gatling.core.check.substring.SubstringCheckType
 import io.gatling.core.json.JsonParsers
+
+import com.fasterxml.jackson.databind.JsonNode
 
 trait WsCheckSupport {
 
-  implicit def checkBuilder2WsTextCheck[A, P, X](checkBuilder: CheckBuilder[A, P, X])(implicit materializer: CheckMaterializer[A, WsTextCheck, String, P]): WsTextCheck =
+  implicit def checkBuilder2WsTextCheck[A, P, X](
+      checkBuilder: CheckBuilder[A, P, X]
+  )(implicit materializer: CheckMaterializer[A, WsTextCheck, String, P]): WsTextCheck =
     checkBuilder.build(materializer)
 
-  implicit def validatorCheckBuilder2WsTextCheck[A, P, X](validatorCheckBuilder: ValidatorCheckBuilder[A, P, X])(implicit materializer: CheckMaterializer[A, WsTextCheck, String, P]): WsTextCheck =
+  implicit def validatorCheckBuilder2WsTextCheck[A, P, X](
+      validatorCheckBuilder: ValidatorCheckBuilder[A, P, X]
+  )(implicit materializer: CheckMaterializer[A, WsTextCheck, String, P]): WsTextCheck =
     validatorCheckBuilder.exists
 
-  implicit def findCheckBuilder2WsTextCheck[A, P, X](findCheckBuilder: FindCheckBuilder[A, P, X])(implicit materializer: CheckMaterializer[A, WsTextCheck, String, P]): WsTextCheck =
+  implicit def findCheckBuilder2WsTextCheck[A, P, X](
+      findCheckBuilder: FindCheckBuilder[A, P, X]
+  )(implicit materializer: CheckMaterializer[A, WsTextCheck, String, P]): WsTextCheck =
     findCheckBuilder.find.exists
 
-  implicit def checkBuilder2WsBinaryCheck[A, P, X](checkBuilder: CheckBuilder[A, P, X])(implicit materializer: CheckMaterializer[A, WsBinaryCheck, Array[Byte], P]): WsBinaryCheck =
+  implicit def checkBuilder2WsBinaryCheck[A, P, X](
+      checkBuilder: CheckBuilder[A, P, X]
+  )(implicit materializer: CheckMaterializer[A, WsBinaryCheck, Array[Byte], P]): WsBinaryCheck =
     checkBuilder.build(materializer)
 
-  implicit def validatorCheckBuilder2WsBinaryCheck[A, P, X](validatorCheckBuilder: ValidatorCheckBuilder[A, P, X])(implicit materializer: CheckMaterializer[A, WsBinaryCheck, Array[Byte], P]): WsBinaryCheck =
+  implicit def validatorCheckBuilder2WsBinaryCheck[A, P, X](
+      validatorCheckBuilder: ValidatorCheckBuilder[A, P, X]
+  )(implicit materializer: CheckMaterializer[A, WsBinaryCheck, Array[Byte], P]): WsBinaryCheck =
     validatorCheckBuilder.exists
 
-  implicit def findCheckBuilder2WsBinaryCheck[A, P, X](findCheckBuilder: FindCheckBuilder[A, P, X])(implicit materializer: CheckMaterializer[A, WsBinaryCheck, Array[Byte], P]): WsBinaryCheck =
+  implicit def findCheckBuilder2WsBinaryCheck[A, P, X](
+      findCheckBuilder: FindCheckBuilder[A, P, X]
+  )(implicit materializer: CheckMaterializer[A, WsBinaryCheck, Array[Byte], P]): WsBinaryCheck =
     findCheckBuilder.find.exists
 
-  implicit def wsJsonPathCheckMaterializer(implicit jsonParsers: JsonParsers) = new WsJsonPathCheckMaterializer(jsonParsers)
+  implicit def wsJsonPathCheckMaterializer(implicit jsonParsers: JsonParsers): CheckMaterializer[JsonPathCheckType, WsTextCheck, String, JsonNode] =
+    WsTextCheckMaterializer.jsonPath(jsonParsers)
 
-  implicit val wsRegexCheckMaterializer = WsRegexCheckMaterializer
+  implicit def wsJmesPathCheckMaterializer(implicit jsonParsers: JsonParsers): CheckMaterializer[JmesPathCheckType, WsTextCheck, String, JsonNode] =
+    WsTextCheckMaterializer.jmesPath(jsonParsers)
 
-  implicit val wsBodyBytesCheckMaterializer = WsBodyBytesCheckMaterializer
+  implicit val wsRegexCheckMaterializer: CheckMaterializer[RegexCheckType, WsTextCheck, String, String] = WsTextCheckMaterializer.Regex
 
-  implicit val wsSubstringCheckMaterializer = WsSubstringCheckMaterializer
+  implicit val wsBodyStringCheckMaterializer: CheckMaterializer[BodyStringCheckType, WsTextCheck, String, String] =
+    WsTextCheckMaterializer.BodyString
+
+  implicit val wsSubstringCheckMaterializer: CheckMaterializer[SubstringCheckType, WsTextCheck, String, String] =
+    WsTextCheckMaterializer.Substring
+
+  implicit val wsBodyBytesCheckMaterializer: CheckMaterializer[BodyBytesCheckType, WsBinaryCheck, Array[Byte], Array[Byte]] =
+    WsBinaryCheckMaterializer.BodyBytes
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,6 @@ import io.gatling.http.client.body.multipart.StringPart;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 
-import java.io.IOException;
-import java.nio.channels.WritableByteChannel;
-
 public class StringPartImpl extends PartImpl {
 
   private final ByteBuf contentBuffer;
@@ -40,11 +37,6 @@ public class StringPartImpl extends PartImpl {
   @Override
   protected void copyContentInto(ByteBuf target) {
     copyInto(contentBuffer, target, PartImplState.POST_CONTENT);
-  }
-
-  @Override
-  protected long transferContentTo(WritableByteChannel target) throws IOException {
-    return transferTo(contentBuffer, target, PartImplState.POST_CONTENT);
   }
 
   @Override

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package io.gatling.http.check.error
 
 import io.gatling.commons.validation._
 import io.gatling.core.check._
-import io.gatling.core.check.extractor._
 import io.gatling.core.session._
 import io.gatling.http.check.ErrorCheck
 import io.gatling.http.check.HttpCheckBuilders._
@@ -29,8 +28,9 @@ trait HttpErrorCheckType
 object HttpErrorCheckBuilder {
 
   val Error: DefaultFindCheckBuilder[HttpErrorCheckType, HttpFailure, String] = {
-    val errorStringExtractor = new Extractor[HttpFailure, String] with SingleArity {
+    val errorStringExtractor = new Extractor[HttpFailure, String] {
       val name = "error"
+      val arity = "err"
       def apply(prepared: HttpFailure): Validation[Option[String]] = Some(prepared.errorMessage).success
     }.expressionSuccess
 
@@ -38,9 +38,6 @@ object HttpErrorCheckBuilder {
   }
 }
 
-object HttpErrorCheckMaterializer extends CheckMaterializer[HttpErrorCheckType, ErrorCheck, HttpFailure, HttpFailure] {
-
-  override val specializer: Specializer[ErrorCheck, HttpFailure] = ErrorSpecializer
-
+object HttpErrorCheckMaterializer extends CheckMaterializer[HttpErrorCheckType, ErrorCheck, HttpFailure, HttpFailure](ErrorSpecializer) {
   override val preparer: Preparer[HttpFailure, HttpFailure] = PassThroughErrorPreparer
 }

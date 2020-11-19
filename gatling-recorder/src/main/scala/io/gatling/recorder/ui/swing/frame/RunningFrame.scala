@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,25 +27,29 @@ import scala.swing.event.ListSelectionChanged
 
 import io.gatling.commons.util.StringHelper.Eol
 import io.gatling.recorder.model._
-
-import com.typesafe.scalalogging.StrictLogging
 import io.gatling.recorder.ui._
-import io.gatling.recorder.ui.swing.component.TextAreaPanel
 import io.gatling.recorder.ui.swing.Commons.IconList
+import io.gatling.recorder.ui.swing.component.TextAreaPanel
 import io.gatling.recorder.ui.swing.util.UIHelper._
 
+import com.typesafe.scalalogging.StrictLogging
 import io.netty.handler.codec.http.HttpHeaders
 
+@SuppressWarnings(Array("org.wartremover.warts.LeakingSealed", "org.wartremover.warts.PublicInference"))
+// LeakingSealed error is in scala-swing
 private[swing] class RunningFrame(frontend: RecorderFrontEnd) extends MainFrame with StrictLogging {
 
-/************************************/
+  /************************************/
   /**           COMPONENTS           **/
-/************************************/
-
+  /************************************/
   /* Top panel components */
   private val tagField = new TextField(15)
   private val tagButton = Button("Add")(addTag())
-  private val clearButton = Button("Clear") { clearState(); frontend.clearRecorderState() }
+  private val clearButton =
+    Button("Clear") {
+      clearState()
+      frontend.clearRecorderState()
+    }
   private val cancelButton = Button("Cancel")(frontend.stopRecording(save = false))
   private val stopButton = Button("Stop & Save")(frontend.stopRecording(save = true))
 
@@ -62,10 +66,9 @@ private[swing] class RunningFrame(frontend: RecorderFrontEnd) extends MainFrame 
   /* Bottom panel components */
   private val hostsRequiringCertificates = new ListView[String] { foreground = Color.red }
 
-/**********************************/
+  /**********************************/
   /**           UI SETUP           **/
-/**********************************/
-
+  /**********************************/
   /* Frame setup */
   title = "Gatling Recorder - Running..."
   peer.setIconImages(IconList.asJava)
@@ -139,10 +142,9 @@ private[swing] class RunningFrame(frontend: RecorderFrontEnd) extends MainFrame 
 
   centerOnScreen()
 
-/*****************************************/
+  /*****************************************/
   /**           EVENTS HANDLING           **/
-/*****************************************/
-
+  /*****************************************/
   /* Reactions */
   listenTo(events.selection)
   reactions += {
@@ -166,18 +168,22 @@ private[swing] class RunningFrame(frontend: RecorderFrontEnd) extends MainFrame 
   }
 
   private def headersToString(headers: HttpHeaders): String =
-    headers.entries.asScala.map { entry => s"${entry.getKey}: ${entry.getValue}" }.mkString(Eol)
+    headers.entries.asScala
+      .map { entry =>
+        s"${entry.getKey}: ${entry.getValue}"
+      }
+      .mkString(Eol)
 
   private def summary(request: HttpRequest): String = {
     import request._
     s"""$httpVersion $method $uri
-         |${headersToString(headers)}""".stripMargin
+       |${headersToString(headers)}""".stripMargin
   }
 
   private def summary(response: HttpResponse): String = {
     import response._
     s"""$status $statusText
-          |${headersToString(headers)}""".stripMargin
+       |${headersToString(headers)}""".stripMargin
   }
 
   /**
@@ -211,11 +217,11 @@ private[swing] class RunningFrame(frontend: RecorderFrontEnd) extends MainFrame 
    */
   def receiveEvent(event: FrontEndEvent): Unit = {
     event match {
-      case pauseInfo: PauseFrontEndEvent => events.add(pauseInfo)
-      case requestInfo: RequestFrontEndEvent => events.add(requestInfo)
-      case tagInfo: TagFrontEndEvent => events.add(tagInfo)
+      case pauseInfo: PauseFrontEndEvent                                               => events.add(pauseInfo)
+      case requestInfo: RequestFrontEndEvent                                           => events.add(requestInfo)
+      case tagInfo: TagFrontEndEvent                                                   => events.add(tagInfo)
       case SslFrontEndEvent(uri) if !hostsRequiringCertificates.listData.contains(uri) => hostsRequiringCertificates.add(uri)
-      case e => logger.debug(s"dropping event $e")
+      case e                                                                           => logger.debug(s"dropping event $e")
     }
   }
 }

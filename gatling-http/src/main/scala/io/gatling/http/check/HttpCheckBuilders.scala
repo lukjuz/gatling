@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,28 +23,14 @@ import io.gatling.http.response._
 
 object HttpCheckBuilders {
 
-  private def specializer(target: HttpCheckScope, responseBodyUsageStrategy: Option[ResponseBodyUsageStrategy]): Specializer[HttpCheck, Response] =
-    (wrapped: Check[Response]) => HttpCheck(wrapped, target, responseBodyUsageStrategy)
-
-  private def errorSpecializer(target: HttpCheckScope, responseBodyUsageStrategy: Option[ResponseBodyUsageStrategy]): Specializer[ErrorCheck, HttpFailure] =
-    (wrapped: Check[HttpFailure]) => ErrorCheck(wrapped, target, responseBodyUsageStrategy)
-
-  val StatusSpecializer = specializer(Status, None)
-  val ErrorSpecializer = errorSpecializer(Error, None)
-  val UrlSpecializer = specializer(Url, None)
-  val HeaderSpecializer = specializer(Header, None)
-  def bodySpecializer(responseBodyUsageStrategy: ResponseBodyUsageStrategy) = specializer(Body, Some(responseBodyUsageStrategy))
-  val StringBodySpecializer = bodySpecializer(StringResponseBodyUsageStrategy)
-  val CharArrayBodySpecializer = bodySpecializer(CharArrayResponseBodyUsageStrategy)
-  val StreamBodySpecializer = bodySpecializer(InputStreamResponseBodyUsageStrategy)
-  val BytesBodySpecializer = bodySpecializer(ByteArrayResponseBodyUsageStrategy)
-  val TimeSpecializer = specializer(Body, None)
-
-  val PassThroughResponsePreparer: Preparer[Response, Response] = _.success
   val ResponseBodyStringPreparer: Preparer[Response, String] = _.body.string.success
   val ResponseBodyBytesPreparer: Preparer[Response, Array[Byte]] = _.body.bytes.success
   val UrlStringPreparer: Preparer[Response, String] = _.request.getUri.toFullUrl.success
 
   val PassThroughErrorPreparer: Preparer[HttpFailure, HttpFailure] = _.success
+  val ErrorSpecializer: Specializer[ErrorCheck, HttpFailure] = errorSpecializer(Error)
+
+  private def errorSpecializer(target: HttpCheckScope): Specializer[ErrorCheck, HttpFailure] =
+    (wrapped: Check[HttpFailure]) => ErrorCheck(wrapped, target)
 
 }

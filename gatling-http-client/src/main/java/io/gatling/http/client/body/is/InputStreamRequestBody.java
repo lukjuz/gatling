@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,20 +22,33 @@ import io.gatling.http.client.body.WritableContent;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.stream.ChunkedStream;
 
+import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.Charset;
 
-public class InputStreamRequestBody extends RequestBody<InputStream> {
+public final class InputStreamRequestBody extends RequestBody<InputStream> {
 
-  public InputStreamRequestBody(InputStream stream, String contentType, Charset charset) {
-    super(stream, contentType, charset);
+  private static class ConsumableInputStream extends InputStream {
+    private final InputStream is;
+
+    ConsumableInputStream(InputStream is)  {
+      this.is = is;
+    }
+
+    boolean consumed = false;
+
+    public int read() throws IOException {
+      consumed = true;
+      return is.read();
+    }
+  }
+
+  public InputStreamRequestBody(InputStream stream, String contentType) {
+    super(new ConsumableInputStream(stream), contentType);
   }
 
   @Override
-  public WritableContent build(boolean zeroCopy, ByteBufAllocator alloc) {
-
+  public WritableContent build(ByteBufAllocator alloc) {
     ChunkedStream chunkedStream = new ChunkedStream(content);
-
     return new WritableContent(chunkedStream, -1);
   }
 
@@ -49,12 +62,15 @@ public class InputStreamRequestBody extends RequestBody<InputStream> {
     throw new UnsupportedOperationException("Can't read InputStream bytes without consuming it");
   }
 
+  public boolean isConsumed() {
+    return ((ConsumableInputStream) content).consumed;
+  }
+
   @Override
   public String toString() {
     return "InputStreamRequestBody{" +
-      "content=" + content +
-      ", contentType=" + contentType +
-      ", charset=" + charset +
+      "contentType='" + contentType + '\'' +
+      ", content=???" +
       '}';
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,25 +30,26 @@ object JmsProtocol {
 
     def protocolClass: Class[io.gatling.core.protocol.Protocol] = classOf[JmsProtocol].asInstanceOf[Class[io.gatling.core.protocol.Protocol]]
 
-    def defaultProtocolValue(configuration: GatlingConfiguration): JmsProtocol = throw new IllegalStateException("Can't provide a default value for JmsProtocol")
+    def defaultProtocolValue(configuration: GatlingConfiguration): JmsProtocol =
+      throw new IllegalStateException("Can't provide a default value for JmsProtocol")
 
     def newComponents(coreComponents: CoreComponents): JmsProtocol => JmsComponents = {
       val jmsConnectionPool = new JmsConnectionPool(coreComponents.actorSystem, coreComponents.statsEngine, coreComponents.clock, coreComponents.configuration)
       coreComponents.actorSystem.registerOnTermination {
         jmsConnectionPool.close()
       }
-      jmsProtocol => JmsComponents(jmsProtocol, jmsConnectionPool)
+      jmsProtocol => new JmsComponents(jmsProtocol, jmsConnectionPool)
     }
   }
 }
 
-case class JmsProtocol(
-    connectionFactory:   ConnectionFactory,
-    credentials:         Option[Credentials],
-    deliveryMode:        Int,
-    replyTimeout:        Option[Long],
+final case class JmsProtocol(
+    connectionFactory: ConnectionFactory,
+    credentials: Option[Credentials],
+    deliveryMode: Int,
+    replyTimeout: Option[Long],
     listenerThreadCount: Int,
-    messageMatcher:      JmsMessageMatcher
+    messageMatcher: JmsMessageMatcher
 ) extends Protocol {
 
   type Components = JmsComponents

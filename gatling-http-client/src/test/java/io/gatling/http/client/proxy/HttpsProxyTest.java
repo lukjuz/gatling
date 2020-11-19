@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,8 @@
 
 package io.gatling.http.client.proxy;
 
-import io.gatling.http.client.HttpClientConfig;
 import io.gatling.http.client.Request;
-import io.gatling.http.client.RequestBuilder;
-import io.gatling.http.client.ahc.uri.Uri;
+import io.gatling.http.client.uri.Uri;
 import io.gatling.http.client.test.HttpTest;
 import io.gatling.http.client.test.TestServer;
 import io.gatling.http.client.test.listener.TestListener;
@@ -27,8 +25,6 @@ import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.ssl.SslContextBuilder;
-import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import org.eclipse.jetty.proxy.ConnectHandler;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
@@ -86,10 +82,7 @@ class HttpsProxyTest extends HttpTest {
 
   @Test
   void testRequestProxy() throws Throwable {
-    HttpClientConfig config = new HttpClientConfig()
-      .setDefaultSslContext(SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build());
-
-    withClient(config).run(client ->
+    withClient().run(client ->
       withServer(target).run(server -> {
 
         server.enqueueEcho();
@@ -99,7 +92,7 @@ class HttpsProxyTest extends HttpTest {
           h.add("Test" + i, "Test" + i);
         }
 
-        Request request = new RequestBuilder(HttpMethod.GET, Uri.create(server.getHttpsUrl()))
+        Request request = client.newRequestBuilder(HttpMethod.GET, Uri.create(server.getHttpsUrl()))
           .setHeaders(h)
           .setProxyServer(new HttpProxyServer("localhost", 0, proxy.getPort(), null))
           .build();

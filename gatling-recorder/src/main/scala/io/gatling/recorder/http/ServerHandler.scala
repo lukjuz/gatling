@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@
 package io.gatling.recorder.http
 
 import io.gatling.commons.util.Clock
-import io.gatling.recorder.http.flows.MitmMessage.{ RequestReceived, ServerChannelInactive }
 import io.gatling.recorder.http.flows._
+import io.gatling.recorder.http.flows.MitmMessage.{ RequestReceived, ServerChannelInactive }
 import io.gatling.recorder.http.ssl.SslServerContext
 
 import akka.actor.{ ActorRef, ActorSystem, Props }
@@ -28,14 +28,15 @@ import io.netty.channel.{ ChannelHandlerContext, ChannelInboundHandlerAdapter }
 import io.netty.handler.codec.http.{ FullHttpRequest, HttpClientCodec, HttpMethod }
 
 class ServerHandler(
-    system:                 ActorSystem,
-    outgoingProxy:          Option[OutgoingProxy],
-    clientBootstrap:        Bootstrap,
-    sslServerContext:       SslServerContext,
-    trafficLogger:          TrafficLogger,
+    system: ActorSystem,
+    outgoingProxy: Option[OutgoingProxy],
+    clientBootstrap: Bootstrap,
+    sslServerContext: SslServerContext,
+    trafficLogger: TrafficLogger,
     httpClientCodecFactory: () => HttpClientCodec,
-    clock:                  Clock
-) extends ChannelInboundHandlerAdapter with StrictLogging {
+    clock: Clock
+) extends ChannelInboundHandlerAdapter
+    with StrictLogging {
 
   @volatile private var https = false
   @volatile private var remote: Remote = _
@@ -46,15 +47,20 @@ class ServerHandler(
     msg match {
       case request: FullHttpRequest =>
         if (mitmActor == null) {
-          https = request.method == HttpMethod.CONNECT
-          remote = {
-            val firstRequestUriWithScheme = Remote.missingScheme(request.uri, https) match {
-              case Some(scheme) => s"$scheme://${request.uri}"
-              case _            => request.uri
-            }
-            Remote.fromAbsoluteUri(firstRequestUriWithScheme)
+          if (request.method == HttpMethod.CONNECT) {
+            assert(!request.uri.startsWith("http"), s"Invalid HTTPS Proxy request: URI '${request.uri}' shouldn't have a scheme.")
+            https = true
+            remote = Remote.fromAbsoluteUri(s"$https://${request.uri}")
+          } else {
+            assert(
+              request.uri.startsWith("http://"),
+              s"Invalid HTTP Proxy request: URI '${request.uri}' should be absolute with http scheme. You're probably confusing Recorder proxy url and target system url."
+            )
+            https = false
+            remote = Remote.fromAbsoluteUri(request.uri)
           }
-          mitmActor = system.actorOf(Props(MitmActor(outgoingProxy, clientBootstrap, sslServerContext, trafficLogger, httpClientCodecFactory, ctx.channel, https, clock)))
+          mitmActor =
+            system.actorOf(Props(MitmActor(outgoingProxy, clientBootstrap, sslServerContext, trafficLogger, httpClientCodecFactory, ctx.channel, https, clock)))
         }
 
         trafficLogger.logRequest(ctx.channel.id, request, remote, https, sendTimestamp)

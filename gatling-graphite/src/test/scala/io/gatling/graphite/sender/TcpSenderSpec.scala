@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,9 +30,9 @@ import akka.util.ByteString
 
 class TcpSenderSpec extends AkkaSpec {
 
-  val dummySocketAddress = new InetSocketAddress(9999)
+  private val dummySocketAddress = new InetSocketAddress(9999)
 
-  class TcpSenderNoIo extends TcpSender(dummySocketAddress, 2, 1.second, new DefaultClock) {
+  private class TcpSenderNoIo extends TcpSender(dummySocketAddress, 2, 1 second, new DefaultClock) {
     override def askForConnection(): Unit = ()
   }
 

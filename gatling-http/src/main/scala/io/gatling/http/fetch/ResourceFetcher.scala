@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import io.gatling.core.filter.Filters
 import io.gatling.core.session._
 import io.gatling.http.cache.HttpCaches
 import io.gatling.http.client.Request
-import io.gatling.http.client.ahc.uri.Uri
+import io.gatling.http.client.uri.Uri
 import io.gatling.http.engine.tx.{ HttpTx, HttpTxExecutor }
 import io.gatling.http.protocol.HttpProtocol
 import io.gatling.http.request._
@@ -34,18 +34,25 @@ import io.gatling.http.util.HttpHelper._
 import com.typesafe.scalalogging.StrictLogging
 import io.netty.handler.codec.http.HttpResponseStatus
 
-object ResourceFetcher extends StrictLogging {
+private[http] object ResourceFetcher extends StrictLogging {
   def applyResourceFilters(resources: List[ConcurrentResource], filters: Option[Filters]): List[ConcurrentResource] =
     filters match {
       case Some(f) => f.filter(resources)
       case _       => resources
     }
 
-  def resourcesToRequests(resources: List[ConcurrentResource], session: Session, httpCaches: HttpCaches, httpProtocol: HttpProtocol, throttled: Boolean, configuration: GatlingConfiguration): List[HttpRequest] =
+  def resourcesToRequests(
+      resources: List[ConcurrentResource],
+      session: Session,
+      httpCaches: HttpCaches,
+      httpProtocol: HttpProtocol,
+      throttled: Boolean,
+      configuration: GatlingConfiguration
+  ): List[HttpRequest] =
     resources.flatMap {
       _.toRequest(session, httpCaches, httpProtocol, throttled, configuration) match {
-        case Success(httpRequest) => List(httpRequest)
-        case Failure(m) =>
+        case Success(httpRequest) => httpRequest :: Nil
+        case Failure(m)           =>
           // shouldn't happen, only static values
           logger.error("Couldn't build request for embedded resource: " + m)
           Nil
@@ -53,10 +60,10 @@ object ResourceFetcher extends StrictLogging {
     }
 }
 
-class ResourceFetcher(
+private[http] class ResourceFetcher(
     coreComponents: CoreComponents,
-    httpCaches:     HttpCaches,
-    httpProtocol:   HttpProtocol,
+    httpCaches: HttpCaches,
+    httpProtocol: HttpProtocol,
     httpTxExecutor: HttpTxExecutor
 ) extends StrictLogging {
 
@@ -67,7 +74,7 @@ class ResourceFetcher(
     val htmlDocumentUri = request.getUri
 
     def inferredResourcesRequests(): List[HttpRequest] = {
-      val inferred = new HtmlParser().getEmbeddedResources(htmlDocumentUri, response.body.chars, UserAgent.getAgent(request))
+      val inferred = new HtmlParser().getEmbeddedResources(htmlDocumentUri, response.body.chars)
       val filtered = applyResourceFilters(inferred, httpProtocol.responsePart.htmlResourcesInferringFilters)
       resourcesToRequests(filtered, session, httpCaches, httpProtocol, throttled, coreComponents.configuration)
     }
@@ -75,8 +82,8 @@ class ResourceFetcher(
     response.status match {
       case HttpResponseStatus.OK =>
         response.lastModifiedOrEtag(httpProtocol) match {
-          case Some(newLastModifiedOrEtag) =>
-            httpCaches.computeInferredResourcesIfAbsent(httpProtocol, htmlDocumentUri, newLastModifiedOrEtag, () => inferredResourcesRequests())
+          case Some(lastModifiedOrEtag) =>
+            httpCaches.computeInferredResourcesIfAbsent(httpProtocol, htmlDocumentUri, lastModifiedOrEtag, () => inferredResourcesRequests())
           case _ =>
             // don't cache
             inferredResourcesRequests()
@@ -95,7 +102,14 @@ class ResourceFetcher(
     }
   }
 
-  def cssFetched(uri: Uri, responseStatus: HttpResponseStatus, lastModifiedOrEtag: Option[String], content: String, session: Session, throttled: Boolean): List[HttpRequest] = {
+  def cssFetched(
+      uri: Uri,
+      responseStatus: HttpResponseStatus,
+      maybeLastModifiedOrEtag: Option[String],
+      content: String,
+      session: Session,
+      throttled: Boolean
+  ): List[HttpRequest] = {
 
     def parseCssResources(): List[HttpRequest] = {
       val computer = CssParser.extractResources(_: Uri, content)
@@ -107,9 +121,9 @@ class ResourceFetcher(
     // this css might contain some resources
     responseStatus match {
       case HttpResponseStatus.OK =>
-        lastModifiedOrEtag match {
-          case Some(newLastModifiedOrEtag) =>
-            httpCaches.computeInferredResourcesIfAbsent(httpProtocol, uri, newLastModifiedOrEtag, () => {
+        maybeLastModifiedOrEtag match {
+          case Some(lastModifiedOrEtag) =>
+            httpCaches.computeInferredResourcesIfAbsent(httpProtocol, uri, lastModifiedOrEtag, () => {
               httpCaches.removeCssResources(uri)
               parseCssResources()
             })
@@ -132,20 +146,20 @@ class ResourceFetcher(
   }
 
   private def buildExplicitResources(resources: List[HttpRequestDef], session: Session): List[HttpRequest] = resources.flatMap { resource =>
-
     resource.requestName(session) match {
-      case Success(requestName) => resource.build(requestName, session) match {
-        case Success(httpRequest) =>
-          Some(httpRequest)
+      case Success(requestName) =>
+        resource.build(requestName, session) match {
+          case Success(httpRequest) =>
+            httpRequest :: Nil
 
-        case Failure(m) =>
-          coreComponents.statsEngine.reportUnbuildableRequest(session, requestName, m)
-          None
-      }
+          case Failure(m) =>
+            coreComponents.statsEngine.reportUnbuildableRequest(session.scenario, session.groups, requestName, m)
+            Nil
+        }
 
       case Failure(m) =>
         logger.error("Could build request name for explicitResource: " + m)
-        None
+        Nil
     }
   }
 
@@ -161,17 +175,7 @@ class ResourceFetcher(
     inferredResources ::: explicitResources match {
       case Nil => None
       case resources =>
-        val (_, filteredResources) = resources.foldLeft((Set.empty[String], List.empty[HttpRequest])) {
-          case ((urls, requests), request) =>
-            val newUrl = request.clientRequest.getUri.toUrl
-            if (urls.contains(newUrl)) {
-              (urls, requests)
-            } else {
-              (urls + newUrl, request :: requests)
-            }
-        }
-
-        Some(new DefaultResourceAggregator(tx, filteredResources.reverse, httpCaches, this, httpTxExecutor, coreComponents.clock, coreComponents.configuration))
+        Some(new DefaultResourceAggregator(tx, resources, httpCaches, this, httpTxExecutor, coreComponents.clock, coreComponents.configuration))
     }
   }
 

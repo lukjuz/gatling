@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,15 +23,20 @@ import scala.concurrent.duration._
 import io.gatling.commons.util.Clock
 import io.gatling.core.controller.inject.Workload
 import io.gatling.core.scenario.Scenario
-import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
-import io.gatling.core.stats.writer.UserMessage
+import io.gatling.core.stats.writer.UserEndMessage
 import io.gatling.core.util.Shard
 
-import akka.actor.ActorSystem
+import io.netty.channel.EventLoopGroup
 
-class ClosedWorkload(scenario: Scenario, steps: Iterable[ClosedInjectionStep], userIdGen: AtomicLong, startTime: Long, system: ActorSystem, statsEngine: StatsEngine, clock: Clock)
-  extends Workload(scenario, userIdGen, startTime, system, statsEngine, clock) {
+class ClosedWorkload(
+    scenario: Scenario,
+    steps: Iterable[ClosedInjectionStep],
+    userIdGen: AtomicLong,
+    eventLoopGroup: EventLoopGroup,
+    statsEngine: StatsEngine,
+    clock: Clock
+) extends Workload(scenario, userIdGen, eventLoopGroup, statsEngine, clock) {
 
   private val offsetedSteps: Array[(FiniteDuration, ClosedInjectionStep)] = {
     var offset: FiniteDuration = Duration.Zero
@@ -68,8 +73,8 @@ class ClosedWorkload(scenario: Scenario, steps: Iterable[ClosedInjectionStep], u
     }
   }
 
-  override def endUser(userMessage: UserMessage): Unit = {
-    statsEngine.logUser(userMessage)
+  override def endUser(userMessage: UserEndMessage): Unit = {
+    statsEngine.logUserEnd(userMessage)
     incrementStoppedUsers()
     if (getConcurrentUsers < _thisBatchTarget && !isAllUsersScheduled) {
       // start a new user

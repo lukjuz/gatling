@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,26 +15,29 @@
  */
 
 import scala.concurrent.duration._
+
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
 
 class SimulationSetupSample extends Simulation {
 
-  val httpProtocol = http
-  val scn = scenario("scenario")
+  private val httpProtocol = http
+  private val scn = scenario("scenario")
 
   //#open-injection
   setUp(
-    scn.inject(
-      nothingFor(4 seconds), // 1
-      atOnceUsers(10), // 2
-      rampUsers(10) during (5 seconds), // 3
-      constantUsersPerSec(20) during (15 seconds), // 4
-      constantUsersPerSec(20) during (15 seconds) randomized, // 5
-      rampUsersPerSec(10) to 20 during (10 minutes), // 6
-      rampUsersPerSec(10) to 20 during (10 minutes) randomized, // 7
-      heavisideUsers(1000) during (20 seconds) // 8
-    ).protocols(httpProtocol)
+    scn
+      .inject(
+        nothingFor(4 seconds), // 1
+        atOnceUsers(10), // 2
+        rampUsers(10) during (5 seconds), // 3
+        constantUsersPerSec(20) during (15 seconds), // 4
+        constantUsersPerSec(20) during (15 seconds) randomized, // 5
+        rampUsersPerSec(10) to 20 during (10 minutes), // 6
+        rampUsersPerSec(10) to 20 during (10 minutes) randomized, // 7
+        heavisideUsers(1000) during (20 seconds) // 8
+      )
+      .protocols(httpProtocol)
   )
   //#open-injection
 
@@ -92,4 +95,49 @@ class SimulationSetupSample extends Simulation {
   )
   //#incrementUsersPerSec
 
+  private val scenario1 = scenario("scenario1")
+  private val scenario2 = scenario("scenario2")
+  private val injectionProfile1 = atOnceUsers(1)
+  private val injectionProfile2 = atOnceUsers(1)
+
+  //#multiple
+  setUp(
+    scenario1.inject(injectionProfile1),
+    scenario2.inject(injectionProfile2)
+  )
+  //#multiple
+
+  private val parent = scenario("parent")
+  private val child1 = scenario("child1")
+  private val child2 = scenario("child2")
+  private val grandChild = scenario("grandChild")
+  private val injectionProfile = constantConcurrentUsers(5) during (5)
+
+  //#andThen
+  setUp(
+    parent
+      .inject(injectionProfile)
+      // child1 and child2 will start at the same time when last parent user will terminate
+      .andThen(
+        child1
+          .inject(injectionProfile)
+          // grandChild will start when last child1 user will terminate
+          .andThen(grandChild.inject(injectionProfile)),
+        child2.inject(injectionProfile)
+      )
+  )
+  //#andThen
+
+  //#noShard
+  setUp(
+    // parent load won't be sharded
+    parent
+      .inject(atOnceUsers(1))
+      .noShard
+      .andThen(
+        // child load will be sharded
+        child1.inject(injectionProfile)
+      )
+  )
+  //#noShard
 }

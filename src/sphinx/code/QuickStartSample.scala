@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,10 @@
 //#quickstart-recorder-output
 package computerdatabase // 1
 
+import scala.concurrent.duration._
+
 import io.gatling.core.Predef._ // 2
 import io.gatling.http.Predef._
-import scala.concurrent.duration._
 
 class BasicSimulation extends Simulation { // 3
 
@@ -32,8 +33,10 @@ class BasicSimulation extends Simulation { // 3
     .userAgentHeader("Mozilla/5.0 (Windows NT 5.1; rv:31.0) Gecko/20100101 Firefox/31.0")
 
   val scn = scenario("BasicSimulation") // 7
-    .exec(http("request_1") // 8
-      .get("/")) // 9
+    .exec(
+      http("request_1") // 8
+        .get("/")
+    ) // 9
     .pause(5) // 10
 
   setUp( // 11

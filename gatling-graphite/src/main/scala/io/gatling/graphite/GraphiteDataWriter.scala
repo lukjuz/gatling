@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,11 +30,11 @@ import io.gatling.graphite.types._
 
 import akka.actor.ActorRef
 
-case class GraphiteData(
-    metricsSender:   ActorRef,
-    requestsByPath:  mutable.Map[GraphitePath, RequestMetricsBuffer],
+final case class GraphiteData(
+    metricsSender: ActorRef,
+    requestsByPath: mutable.Map[GraphitePath, RequestMetricsBuffer],
     usersByScenario: mutable.Map[GraphitePath, UserBreakdownBuffer],
-    format:          GraphitePathPattern
+    format: GraphitePathPattern
 ) extends DataWriterData
 
 private[gatling] class GraphiteDataWriter(clock: Clock, configuration: GatlingConfiguration) extends DataWriter[GraphiteData] with NameGen {
@@ -56,7 +56,7 @@ private[gatling] class GraphiteDataWriter(clock: Clock, configuration: GatlingCo
     usersByScenario.update(pattern.allUsersPath, new UserBreakdownBuffer(scenarios.sumBy(_.totalUserCount.getOrElse(0L))))
     scenarios.foreach(scenario => usersByScenario += (pattern.usersPath(scenario.name) -> new UserBreakdownBuffer(scenario.totalUserCount.getOrElse(0L))))
 
-    setTimer(flushTimerName, Flush, configuration.data.graphite.writePeriod, repeat = true)
+    startTimerWithFixedDelay(flushTimerName, Flush, configuration.data.graphite.writePeriod)
 
     GraphiteData(metricsSender, requestsByPath, usersByScenario, pattern)
   }
@@ -73,10 +73,10 @@ private[gatling] class GraphiteDataWriter(clock: Clock, configuration: GatlingCo
     sendMetricsToGraphite(data, clock.nowSeconds, requestsMetrics, usersBreakdowns)
   }
 
-  private def onUserMessage(userMessage: UserMessage, data: GraphiteData): Unit = {
+  private def onUserMessage(scenario: String, isStart: Boolean, data: GraphiteData): Unit = {
     import data._
-    usersByScenario(format.usersPath(userMessage.session.scenario)).add(userMessage)
-    usersByScenario(format.allUsersPath).add(userMessage)
+    usersByScenario(format.usersPath(scenario)).record(isStart)
+    usersByScenario(format.allUsersPath).record(isStart)
   }
 
   private def onResponseMessage(response: ResponseMessage, data: GraphiteData): Unit = {
@@ -90,20 +90,24 @@ private[gatling] class GraphiteDataWriter(clock: Clock, configuration: GatlingCo
   }
 
   override def onMessage(message: LoadEventMessage, data: GraphiteData): Unit = message match {
-    case user: UserMessage         => onUserMessage(user, data)
-    case response: ResponseMessage => onResponseMessage(response, data)
-    case _                         =>
+    case UserStartMessage(scenario, _) => onUserMessage(scenario, isStart = true, data)
+    case UserEndMessage(scenario, _)   => onUserMessage(scenario, isStart = false, data)
+    case response: ResponseMessage     => onResponseMessage(response, data)
+    case _                             =>
   }
 
   override def onCrash(cause: String, data: GraphiteData): Unit = {}
 
-  def onStop(data: GraphiteData): Unit = cancelTimer(flushTimerName)
+  def onStop(data: GraphiteData): Unit = {
+    cancelTimer(flushTimerName)
+    onFlush(data)
+  }
 
   private def sendMetricsToGraphite(
-    data:            GraphiteData,
-    epoch:           Long,
-    requestsMetrics: Map[GraphitePath, MetricByStatus],
-    userBreakdowns:  Map[GraphitePath, UserBreakdown]
+      data: GraphiteData,
+      epoch: Long,
+      requestsMetrics: Map[GraphitePath, MetricByStatus],
+      userBreakdowns: Map[GraphitePath, UserBreakdown]
   ): Unit = {
 
     import data._

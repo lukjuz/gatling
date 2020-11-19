@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,23 +17,20 @@
 package io.gatling.http.check.body
 
 import io.gatling.commons.validation._
-import io.gatling.core.check._
-import io.gatling.core.check.extractor.css.{ CssCheckType, CssSelectors }
-import io.gatling.http.check.HttpCheck
-import io.gatling.http.check.HttpCheckBuilders._
+import io.gatling.core.check.{ CheckMaterializer, Preparer }
+import io.gatling.core.check.css.{ CssCheckType, CssSelectors }
+import io.gatling.http.check.{ HttpCheck, HttpCheckMaterializer }
+import io.gatling.http.check.HttpCheckScope.Body
 import io.gatling.http.response.Response
 
 import jodd.lagarto.dom.NodeSelector
 
-class HttpBodyCssCheckMaterializer(selectors: CssSelectors)
-  extends CheckMaterializer[CssCheckType, HttpCheck, Response, NodeSelector] {
+object HttpBodyCssCheckMaterializer {
 
-  override val specializer: Specializer[HttpCheck, Response] = CharArrayBodySpecializer
+  private val ErrorMapper: String => String = "Could not parse response into a Jodd NodeSelector: " + _
 
-  private val ErrorMapper = "Could not parse response into a Jodd NodeSelector: " + _
-
-  override val preparer: Preparer[Response, NodeSelector] = response =>
-    safely(ErrorMapper) {
-      selectors.parse(response.body.chars).success
-    }
+  def instance(selectors: CssSelectors): CheckMaterializer[CssCheckType, HttpCheck, Response, NodeSelector] = {
+    val preparer: Preparer[Response, NodeSelector] = response => safely(ErrorMapper)(selectors.parse(response.body.chars).success)
+    new HttpCheckMaterializer[CssCheckType, NodeSelector](Body, preparer)
+  }
 }

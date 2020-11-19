@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,34 +16,38 @@
 
 package io.gatling.core.util
 
-import java.io.{ File, FileInputStream, FileOutputStream, InputStream }
+import java.io._
 import java.net.URL
 import java.nio.charset.Charset
-import java.nio.file.Path
+import java.nio.file.{ Files, Path, Paths }
+import java.util.concurrent.ConcurrentHashMap
 
 import io.gatling.commons.util.Io._
 import io.gatling.commons.util.PathHelper._
 import io.gatling.commons.validation._
-import io.gatling.core.config.{ GatlingConfiguration, GatlingFiles }
 
 object Resource {
 
+  private final case class Location(directory: Path, path: String)
+
   private object ClasspathResource {
-    def unapply(location: Location): Option[Validation[Resource]] =
-      Option(getClass.getClassLoader.getResource(location.path.replace('\\', '/'))).map { url =>
+    def unapply(location: Location): Option[Validation[Resource]] = {
+      val cleanPath = location.path.replace('\\', '/')
+      Option(getClass.getClassLoader.getResource(cleanPath)).map { url =>
         url.getProtocol match {
-          case "file" => FileResource(url.jfile).success
-          case "jar"  => ArchiveResource(url).success
+          case "file" => ClasspathFileResource(cleanPath, url.file).success
+          case "jar"  => ClasspathPackagedResource(cleanPath, url).success
           case _      => s"$url is neither a file nor a jar".failure
         }
       }
+    }
   }
 
   private object DirectoryChildResource {
     def unapply(location: Location): Option[Validation[Resource]] =
       (location.directory / location.path).ifFile { f =>
         if (f.canRead)
-          FileResource(f).success
+          FilesystemResource(f).success
         else
           s"File $f can't be read".failure
       }
@@ -51,7 +55,7 @@ object Resource {
 
   private object AbsoluteFileResource {
     def unapply(location: Location): Option[Validation[Resource]] =
-      string2path(location.path).ifFile(f => FileResource(f).success)
+      Paths.get(location.path).ifFile(FilesystemResource(_).success)
   }
 
   private[gatling] def resolveResource(directory: Path, path: String): Validation[Resource] =
@@ -61,51 +65,49 @@ object Resource {
       case AbsoluteFileResource(res)   => res
       case _                           => s"Resource $path not found".failure
     }
-
-  case class Location(directory: Path, path: String)
-
-  def resource(fileName: String)(implicit configuration: GatlingConfiguration): Validation[Resource] =
-    resolveResource(GatlingFiles.resourcesDirectory, fileName)
 }
 
 sealed trait Resource {
   def name: String
-  def inputStream: InputStream
   def file: File
+  def inputStream: InputStream = new BufferedInputStream(new FileInputStream(file))
   def string(charset: Charset): String = withCloseable(inputStream) { _.toString(charset) }
-  def bytes: Array[Byte]
+  def bytes: Array[Byte] = Files.readAllBytes(file.toPath)
 }
 
-case class FileResource(file: File) extends Resource {
-  override def name: String = file.getName
-  override def inputStream = new FileInputStream(file)
-  override def bytes: Array[Byte] = file.toByteArray
-}
-
-case class ArchiveResource(url: URL) extends Resource {
-
+final case class ClasspathPackagedResource(path: String, url: URL) extends Resource {
   override val name: String = {
     val urlString = url.toString
     urlString.lastIndexOf(File.separatorChar) match {
       case -1 => urlString
-      case i  => urlString.substring(i)
+      case i  => urlString.substring(i + 1)
     }
   }
 
-  override def inputStream: InputStream = url.openStream
+  override lazy val file: File = {
+    val tempFile = File.createTempFile("gatling-" + name, null)
+    tempFile.deleteOnExit()
 
-  override def file: File = {
-    val lastDotIndex = name.lastIndexOf('.')
-    val extension = if (lastDotIndex != -1) "" else name.substring(lastDotIndex + 1)
-    val tempFile = File.createTempFile("gatling", "." + extension)
-
-    withCloseable(inputStream) { is =>
-      withCloseable(new FileOutputStream(tempFile, false)) { os =>
+    withCloseable(url.openStream()) { is =>
+      withCloseable(new BufferedOutputStream(new FileOutputStream(tempFile, false))) { os =>
         is.copyTo(os)
       }
     }
     tempFile
   }
+}
 
-  override def bytes: Array[Byte] = withCloseable(inputStream)(_.toByteArray())
+final case class ClasspathFileResource(path: String, file: File) extends Resource {
+  override val name: String = file.getName
+}
+
+final case class FilesystemResource(file: File) extends Resource {
+  override val name: String = file.getName
+}
+
+trait ResourceCache {
+  private val resourceCache = new ConcurrentHashMap[String, Validation[Resource]]()
+
+  protected def cachedResource(resourcesDirectory: Path, path: String): Validation[Resource] =
+    resourceCache.computeIfAbsent(path, Resource.resolveResource(resourcesDirectory, _))
 }

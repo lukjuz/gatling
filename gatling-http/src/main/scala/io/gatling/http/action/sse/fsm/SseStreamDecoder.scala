@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package io.gatling.http.action.sse.fsm
 
 import java.nio.CharBuffer
 
-import io.gatling.netty.util.ahc.Utf8ByteBufCharsetDecoder
+import io.gatling.netty.util.Utf8ByteBufCharsetDecoder
 
 import io.netty.buffer.ByteBuf
 
@@ -27,10 +27,10 @@ object SseStreamDecoder {
   private val LF = 0x0A
   private val CR = 0x0D
 
-  val EventHeader = "event:".toCharArray
-  val DataHeader = "data:".toCharArray
-  val IdHeader = "id:".toCharArray
-  val RetryHeader = "retry:".toCharArray
+  private val EventHeader = "event:".toCharArray
+  private val DataHeader = "data:".toCharArray
+  private val IdHeader = "id:".toCharArray
+  private val RetryHeader = "retry:".toCharArray
 }
 
 class SseStreamDecoder extends Utf8ByteBufCharsetDecoder {
@@ -65,7 +65,9 @@ class SseStreamDecoder extends Utf8ByteBufCharsetDecoder {
       if (lineLength < fieldHeaderLength) {
         None
 
-      } else if ((0 until fieldHeaderLength).forall { i => charArray(lineStart + i) == fieldHeader(i) }) {
+      } else if ((0 until fieldHeaderLength).forall { i =>
+                   charArray(lineStart + i) == fieldHeader(i)
+                 }) {
         val nextPos = lineStart + fieldHeaderLength
         val valueStart =
           if (charArray(nextPos) == ' ') {
@@ -105,16 +107,19 @@ class SseStreamDecoder extends Utf8ByteBufCharsetDecoder {
     } else {
       // parse real line
       onFieldHeaderMatch(EventHeader) match {
-        case None => onFieldHeaderMatch(DataHeader) match {
-          case None => onFieldHeaderMatch(IdHeader) match {
-            case None => onFieldHeaderMatch(RetryHeader) match {
-              case None =>
-              case res  => pendingRetry = res.map(_.toInt)
-            }
-            case res => pendingId = res
+        case None =>
+          onFieldHeaderMatch(DataHeader) match {
+            case None =>
+              onFieldHeaderMatch(IdHeader) match {
+                case None =>
+                  onFieldHeaderMatch(RetryHeader) match {
+                    case None =>
+                    case res  => pendingRetry = res.map(_.toInt)
+                  }
+                case res => pendingId = res
+              }
+            case res => pendingData = res
           }
-          case res => pendingData = res
-        }
         case res => pendingName = res
       }
     }

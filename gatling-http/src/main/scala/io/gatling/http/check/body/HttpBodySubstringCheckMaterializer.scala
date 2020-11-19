@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,15 +16,15 @@
 
 package io.gatling.http.check.body
 
-import io.gatling.core.check._
-import io.gatling.core.check.extractor.substring.SubstringCheckType
-import io.gatling.http.check.HttpCheck
+import io.gatling.core.check.CheckMaterializer
+import io.gatling.core.check.substring.SubstringCheckType
+import io.gatling.http.check.{ HttpCheck, HttpCheckMaterializer }
 import io.gatling.http.check.HttpCheckBuilders._
+import io.gatling.http.check.HttpCheckScope.Body
 import io.gatling.http.response.Response
 
-object HttpBodySubstringCheckMaterializer extends CheckMaterializer[SubstringCheckType, HttpCheck, Response, String] {
+object HttpBodySubstringCheckMaterializer {
 
-  override val specializer: Specializer[HttpCheck, Response] = StringBodySpecializer
-
-  override val preparer: Preparer[Response, String] = ResponseBodyStringPreparer
+  val Instance: CheckMaterializer[SubstringCheckType, HttpCheck, Response, String] =
+    new HttpCheckMaterializer[SubstringCheckType, String](Body, ResponseBodyStringPreparer)
 }

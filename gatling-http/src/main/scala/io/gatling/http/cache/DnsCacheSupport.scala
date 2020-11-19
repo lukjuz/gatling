@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,123 +16,61 @@
 
 package io.gatling.http.cache
 
+import java.{ util => ju }
 import java.net.InetAddress
-import java.util.{ List => JList }
 
+import io.gatling.commons.validation._
 import io.gatling.core.CoreComponents
 import io.gatling.core.session.{ Session, SessionPrivateAttributes }
+import io.gatling.http.client.resolver.InetAddressNameResolver
 import io.gatling.http.engine.HttpEngine
-import io.gatling.http.protocol.{ AsyncDnsNameResolution, DnsNameResolution, HttpProtocol, JavaDnsNameResolution }
-import io.gatling.http.resolver.{ AliasesAwareNameResolver, CacheOverrideNameResolver, ShuffleJdkNameResolver }
-import io.gatling.http.util.HttpTypeCaster
+import io.gatling.http.protocol.{ AsyncDnsNameResolution, HttpProtocolDnsPart, JavaDnsNameResolution }
+import io.gatling.http.resolver.{ AliasesAwareNameResolver, SharedAsyncDnsNameResolverFactory, ShufflingNameResolver }
 
-import io.netty.resolver.NameResolver
-import io.netty.resolver.dns.DefaultDnsCache
-import io.netty.util.concurrent.{ Future, Promise }
-
-object DnsCacheSupport {
-
+private[http] object DnsCacheSupport {
   val DnsNameResolverAttributeName: String = SessionPrivateAttributes.PrivateAttributePrefix + "http.cache.dns"
-
-  private def newNameResolver(
-    dnsNameResolution: DnsNameResolution,
-    hostNameAliases:   Map[String, InetAddress],
-    httpEngine:        HttpEngine,
-    coreComponents:    CoreComponents
-  ) =
-    coreComponents.configuration.resolve(
-      // [fl]
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      //
-      // [fl]
-      dnsNameResolution match {
-        case JavaDnsNameResolution =>
-          val shuffleJdkNameResolver = new ShuffleJdkNameResolver
-          if (hostNameAliases.isEmpty) {
-            shuffleJdkNameResolver
-          } else {
-            new AliasesAwareNameResolver(hostNameAliases, shuffleJdkNameResolver)
-          }
-
-        case AsyncDnsNameResolution(dnsServers) =>
-          if (hostNameAliases.isEmpty) {
-            new CacheOverrideNameResolver(httpEngine.newAsyncDnsNameResolver(dnsServers), new DefaultDnsCache)
-          } else {
-            new AliasesAwareNameResolver(hostNameAliases, httpEngine.newAsyncDnsNameResolver(dnsServers))
-          }
-      }
-    )
 }
 
-trait DnsCacheSupport {
+private[http] trait DnsCacheSupport {
 
   import DnsCacheSupport._
 
   def coreComponents: CoreComponents
 
-  def setNameResolver(httpProtocol: HttpProtocol, httpEngine: HttpEngine): Session => Session = {
+  private def setDecoratedResolver(
+      session: Session,
+      resolver: InetAddressNameResolver,
+      hostNameAliases: Map[String, ju.List[InetAddress]]
+  ): Session = {
+    val shufflingResolver = new ShufflingNameResolver(resolver, session.eventLoop)
+    val aliasAwareResolver = AliasesAwareNameResolver(hostNameAliases, shufflingResolver)
+    session.set(DnsNameResolverAttributeName, aliasAwareResolver)
+  }
 
-    import httpProtocol.dnsPart._
+  def setNameResolver(dnsPart: HttpProtocolDnsPart, httpEngine: HttpEngine): Session => Session = {
 
-    if (perUserNameResolution) {
-      _.set(DnsNameResolverAttributeName, newNameResolver(dnsNameResolution, hostNameAliases, httpEngine, coreComponents))
+    import dnsPart._
 
-    } else {
-      // create shared name resolver for all the users with this protocol
-      val nameResolver = newNameResolver(dnsNameResolution, hostNameAliases, httpEngine, coreComponents)
-      coreComponents.actorSystem.registerOnTermination(() => nameResolver.close())
-
-      // perform close on system shutdown instead of virtual user termination as its shared
-      val noopCloseNameResolver = new NameResolver[InetAddress] {
-        override def resolve(inetHost: String): Future[InetAddress] =
-          nameResolver.resolve(inetHost)
-
-        override def resolve(inetHost: String, promise: Promise[InetAddress]): Future[InetAddress] =
-          nameResolver.resolve(inetHost, promise)
-
-        override def resolveAll(inetHost: String): Future[JList[InetAddress]] =
-          nameResolver.resolveAll(inetHost)
-
-        override def resolveAll(inetHost: String, promise: Promise[JList[InetAddress]]): Future[JList[InetAddress]] =
-          nameResolver.resolveAll(inetHost, promise)
-
-        override def close(): Unit = {}
-      }
-
-      _.set(DnsNameResolverAttributeName, noopCloseNameResolver)
+    dnsNameResolution match {
+      case JavaDnsNameResolution =>
+        val actualResolver = httpEngine.newJavaDnsNameResolver
+        setDecoratedResolver(_, actualResolver, hostNameAliases)
+      case AsyncDnsNameResolution(dnsServers) =>
+        if (perUserNameResolution) { session =>
+          {
+            val actualResolver = httpEngine.newAsyncDnsNameResolver(session.eventLoop, dnsServers)
+            setDecoratedResolver(session, actualResolver, hostNameAliases)
+          }
+        } else {
+          val factory = SharedAsyncDnsNameResolverFactory(httpEngine, dnsServers, coreComponents.actorSystem)
+          session => {
+            val sharedResolver = factory(session.eventLoop)
+            setDecoratedResolver(session, sharedResolver, hostNameAliases)
+          }
+        }
     }
   }
 
-  def nameResolver(session: Session): Option[NameResolver[InetAddress]] = {
-    // import optimized TypeCaster
-    import HttpTypeCaster._
-    session(DnsNameResolverAttributeName).asOption[NameResolver[InetAddress]]
-  }
+  def nameResolver(session: Session): Validation[InetAddressNameResolver] =
+    session.attributes.get(DnsNameResolverAttributeName).map(_.asInstanceOf[InetAddressNameResolver]).toValidation("DnsNameResolver missing from Session")
 }

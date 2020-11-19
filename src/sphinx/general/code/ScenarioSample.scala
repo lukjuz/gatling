@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import io.gatling.core.session.Session
-
 import scala.concurrent.duration._
+
 import io.gatling.core.Predef._
+import io.gatling.core.session.Session
 import io.gatling.http.Predef._
 
 class ScenarioSample {
@@ -50,7 +50,6 @@ class ScenarioSample {
 
   //#session-improper
   exec { session =>
-
     if (someSessionBasedCondition(session)) {
       // just create a builder that is immediately discarded, hence doesn't do anything
       // you should be using a doIf here
@@ -186,17 +185,17 @@ class ScenarioSample {
   //#doSwitch
   doSwitch("${myKey}")( // beware: use parentheses, not curly braces!
     key1 -> chain1,
-    key1 -> chain2
+    key2 -> chain2
   )
   //#doSwitch
 
   //#doSwitchOrElse
   doSwitchOrElse("${myKey}")( // beware: use parentheses, not curly braces!
     key1 -> chain1,
-    key1 -> chain2
+    key2 -> chain2
   )(
-      myFallbackChain
-    )
+    myFallbackChain
+  )
   //#doSwitchOrElse
 
   //#randomSwitch
@@ -211,8 +210,8 @@ class ScenarioSample {
     percentage1 -> chain1,
     percentage2 -> chain2
   ) {
-      myFallbackChain
-    }
+    myFallbackChain
+  }
   //#randomSwitchOrElse
 
   //#uniformRandomSwitch
@@ -240,6 +239,15 @@ class ScenarioSample {
     myChain
   }
   //#exitBlockOnFail
+
+  //#exitHereIf
+  exitHere
+  //#exitHereIf
+
+  //#exitHereIf
+  exitHereIf("${myBoolean}")
+  exitHereIf(session => true)
+  //#exitHereIf
 
   //#exitHereIfFailed
   exitHereIfFailed

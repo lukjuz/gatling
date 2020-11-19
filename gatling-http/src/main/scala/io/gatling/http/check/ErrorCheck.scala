@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,17 +21,15 @@ import java.util.{ Map => JMap }
 import io.gatling.commons.validation.Validation
 import io.gatling.core.check.{ Check, CheckResult }
 import io.gatling.core.session.Session
-import io.gatling.http.response.{ HttpFailure, ResponseBodyUsageStrategy }
+import io.gatling.http.response.HttpFailure
 
 /**
  * This class serves as model for the HTTP-specific checks
  *
  * @param wrapped the underlying check
  * @param scope the part of the response this check targets
- * @param responseBodyUsageStrategy how this check uses the response body
  */
-case class ErrorCheck(wrapped: Check[HttpFailure], scope: HttpCheckScope, responseBodyUsageStrategy: Option[ResponseBodyUsageStrategy])
-  extends Check[HttpFailure] {
-  override def check(error: HttpFailure, session: Session)(implicit cache: JMap[Any, Any]): Validation[CheckResult] =
-    wrapped.check(error, session)
+final case class ErrorCheck(wrapped: Check[HttpFailure], scope: HttpCheckScope) extends Check[HttpFailure] {
+  override def check(error: HttpFailure, session: Session, preparedCache: JMap[Any, Any]): Validation[CheckResult] =
+    wrapped.check(error, session, preparedCache)
 }

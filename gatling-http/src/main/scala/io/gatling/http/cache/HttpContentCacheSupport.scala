@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,38 +19,39 @@ package io.gatling.http.cache
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session.{ Session, SessionPrivateAttributes }
 import io.gatling.core.util.cache.SessionCacheHandler
-import io.gatling.http.HeaderNames
 import io.gatling.http.client.Request
-import io.gatling.http.client.ahc.uri.Uri
+import io.gatling.http.client.uri.Uri
 import io.gatling.http.protocol.HttpProtocol
-import io.gatling.http.response.Response
+
+import io.netty.handler.codec.http.{ HttpHeaderNames, HttpHeaders }
 
 object ContentCacheKey {
   def apply(request: Request): ContentCacheKey =
     new ContentCacheKey(request.getUri, request.getMethod.name, Cookies(request.getCookies))
 }
 
-case class ContentCacheKey(uri: Uri, method: String, cookies: Map[String, String])
+private[cache] final case class ContentCacheKey(uri: Uri, method: String, cookies: Map[String, String])
 
-case class ContentCacheEntry(expires: Option[Long], etag: Option[String], lastModified: Option[String])
+private[http] final case class ContentCacheEntry(expires: Option[Long], etag: Option[String], lastModified: Option[String])
 
-object HttpContentCacheSupport {
+private[cache] object HttpContentCacheSupport {
   val HttpContentCacheAttributeName: String = SessionPrivateAttributes.PrivateAttributePrefix + "http.cache.contentCache"
 }
 
-trait HttpContentCacheSupport extends ExpiresSupport {
+private[cache] trait HttpContentCacheSupport extends ExpiresSupport {
 
   import HttpContentCacheSupport._
 
   def configuration: GatlingConfiguration
 
-  private[this] val httpContentCacheHandler = new SessionCacheHandler[ContentCacheKey, ContentCacheEntry](HttpContentCacheAttributeName, configuration.http.perUserCacheMaxCapacity)
+  private[this] val httpContentCacheHandler =
+    new SessionCacheHandler[ContentCacheKey, ContentCacheEntry](HttpContentCacheAttributeName, configuration.http.perUserCacheMaxCapacity)
 
-  def cacheContent(session: Session, httpProtocol: HttpProtocol, request: Request, response: Response): Session =
+  def cacheContent(session: Session, httpProtocol: HttpProtocol, request: Request, responseHeaders: HttpHeaders): Session =
     if (httpProtocol.requestPart.cache && httpContentCacheHandler.enabled) {
-      val expires = getResponseExpires(response)
-      val etag = response.header(HeaderNames.ETag)
-      val lastModified = response.header(HeaderNames.LastModified)
+      val expires = getResponseExpires(responseHeaders)
+      val etag = Option(responseHeaders.get(HttpHeaderNames.ETAG))
+      val lastModified = Option(responseHeaders.get(HttpHeaderNames.LAST_MODIFIED))
 
       if (expires.isDefined || etag.isDefined || lastModified.isDefined) {
         val key = ContentCacheKey(request)

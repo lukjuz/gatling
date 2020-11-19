@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,15 +18,15 @@ package io.gatling.core.controller.throttle
 
 import java.lang.System._
 
-import scala.concurrent.duration._
 import scala.collection.mutable
+import scala.concurrent.duration._
 
-case class ThrottledRequest(scenarioName: String, request: () => Unit)
+final case class ThrottledRequest(scenarioName: String, request: () => Unit)
 
 class ThrottlerActor extends ThrottlerActorFSM {
 
-  import ThrottlerActorState._
   import ThrottlerActorData._
+  import ThrottlerActorState._
 
   startWith(WaitingToStart, NoData)
 

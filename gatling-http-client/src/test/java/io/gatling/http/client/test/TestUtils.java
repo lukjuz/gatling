@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,8 @@ public class TestUtils {
 
     public static ServerConnector addHttpsConnector(Server server) throws IOException, URISyntaxException {
         String keyStoreFile = resourceAsFile("ssltest-keystore.jks").getAbsolutePath();
-        SslContextFactory sslContextFactory = new SslContextFactory(keyStoreFile);
+        SslContextFactory sslContextFactory = new SslContextFactory.Server();
+        sslContextFactory.setKeyStorePath(keyStoreFile);
         sslContextFactory.setKeyStorePassword("changeit");
 
         String trustStoreFile = resourceAsFile("ssltest-cacerts.jks").getAbsolutePath();
@@ -89,6 +90,6 @@ public class TestUtils {
     }
 
     public static void assertContentTypesEquals(String actual, String expected) {
-        assertEquals(expected.replace("; ", "").toLowerCase(Locale.ENGLISH), actual.replace("; ", "").toLowerCase(Locale.ENGLISH), "Unexpected content-type");
+        assertEquals(expected.replace("; ", "").toLowerCase(Locale.ROOT), actual.replace("; ", "").toLowerCase(Locale.ENGLISH), "Unexpected content-type");
     }
 }

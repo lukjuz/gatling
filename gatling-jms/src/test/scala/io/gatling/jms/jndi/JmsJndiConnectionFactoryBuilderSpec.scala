@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@ package io.gatling.jms.jndi
 
 import javax.naming.Context
 
+import scala.collection.JavaConverters.dictionaryAsScalaMapConverter
+
 import io.gatling.BaseSpec
 import io.gatling.jms.Predef.jmsJndiConnectionFactory
-
-import scala.collection.JavaConverters.dictionaryAsScalaMapConverter
 
 class JmsJndiConnectionFactoryBuilderSpec extends BaseSpec {
 

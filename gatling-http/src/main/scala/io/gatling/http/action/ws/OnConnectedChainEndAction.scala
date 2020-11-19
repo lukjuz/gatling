@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,10 +51,12 @@ class OnConnectedChainEndAction(override val name: String, exit: Action) extends
   import OnConnectedChainEndAction._
 
   override def execute(session: Session): Unit =
-    session(OnConnectedChainEndCallback).validate[Session => Unit]
+    session(OnConnectedChainEndCallback)
+      .validate[Session => Unit]
       .map {
         _(removeOnConnectedChainEndCallback(session))
-      }.onFailure { message =>
+      }
+      .onFailure { message =>
         logger.error(s"'$name' failed to execute: $message")
         exit ! session
       }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 GatlingCorp (https://gatling.io)
+ * Copyright 2011-2020 GatlingCorp (https://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import io.netty.handler.proxy.Socks4ProxyHandler;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 
-public class Socks4ProxyServer extends ProxyServer {
+public class Socks4ProxyServer extends SockProxyServer {
 
   private final InetSocketAddress address;
   private final String username;
